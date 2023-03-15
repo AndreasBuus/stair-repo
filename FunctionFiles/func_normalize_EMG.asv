@@ -1,0 +1,46 @@
+function [EMG_norm] = func_normalize_EMG(step_index, data, varargin)
+
+    % MYFUNCTION - This function returns the EMG signal normalized to specified
+    % step
+    % [SOL_align, TA_align, angle_align, FSR_align, time_align] = func_align(step_index, SOL, TA, angle, FSR, varargin) 
+    %
+    % alternativ input (alignStep) - 'four_begin','second_end', 'second_begin'
+    % Example: [data_align{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', alignWithStep);
+
+    % default values and validiation 
+    defaultStep = 2;
+    defaultSpan = 15; 
+    expectedStepsObtions = [0,2,4,6];
+    ecpectedProtocol = 2;
+
+    validationFcn = @(x) assert(ismember(x, expectedStepsObtions), 'Assertion failed.');
+validationFcn = @(x) assert(1 - isempty(nonzeros(ismember(expectedStepsOptions,2))) && numel(x) <= 1, 'Assertion failed: x contains more than 1 element.');
+
+    % variable input argument list
+    p = inputParser;
+    addParameter(p, 'normalize_to_step',defaultStep, validationFcn); 
+    addParameter(p, 'span', defaultSpan)
+    parse(p,varargin{:})
+
+    % find rise of FSR sensor to specified step
+    [rise, fall] = func_find_edge(p.Results.normalize_to_step);
+    proto = CTL 
+   
+    for i = 1:size(data{proto,1},1) %sweeps      
+        index_array = step_index((i),rise) + ceil((step_index((i),fall)-step_index((i),rise))/2)  : step_index((i),fall); 
+        SOL_max(i) = max(smooth(data{proto,SOL}((i), index_array),p.Results.span, 'moving'));
+        TA_max(i)  = max(smooth(data{proto,TA} ((i), index_array),p.Results.span, 'moving'));
+    end
+
+    SOL_max_gns = mean(SOL_max);    clear SOL_max
+    TA_max_gns  = mean(TA_max);     clear TA_max
+
+    %disp("Proto " + proto + ". SOL_max_gns " + SOL_max_gns)
+
+    for i = 1:size(data{proto,SOL},1) %sweeps
+        data{proto,SOL}(i,:) =(data{proto,SOL}(i,:)) / SOL_max_gns;
+        data{proto,TA}(i,:) = (data{proto,TA}(i,:)) / TA_max_gns;
+    end
+
+    EMG_norm = data; 
+end 
