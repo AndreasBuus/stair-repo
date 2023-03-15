@@ -5,7 +5,7 @@ close all;
 %% Folders 
 fprintf('script: Folder . . . '); tic
 
-names = ["thomas", "benedikte", "andreas", "andrew", "gritt", "maria", "trine", "trine2"]%, "Christian", "Soeren"]; % MIA
+names = ["thomas", "benedikte", "andreas", "andrew", "gritt", "maria", "trine", "trine2", "Christian", "Soeren"]; % MIA
 % CTL2: andrew, Gritt, thomas, Mia, Trine, Trine 2
 
 % Define data path
@@ -74,13 +74,15 @@ show_gui = false;
 gui_subject = 4; 
 protocol = CTL; 
 
+%  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
+error = zeros(numel(names),100);
 if readjust 
     for subject = 1:numel(names) % loop through subjects
-       
+        
         % Load data for subject 
         data = total_data{1,1,subject}; 
         step_index = total_step{1,1,subject};
-        
+       
         for sweep = 1:size(data{protocol,ANG},1) % loop through sweeps        
             for step = 1:3  % loop through steps   
                 
@@ -106,16 +108,29 @@ if readjust
 
                 % Update step_index or throw error
                 if the_pks == 0     % non found: error
-                    msg = "\n Error: no peak found. Subject: " + subject + ". Sweep: " + sweep + ". Step: " + steps_tested(step) + " "; 
-                    fprintf(2,msg); 
+                    error(subject,sweep) = 1;                     
                 else                % no error 
                     step_index{protocol}(sweep, rise_num) = the_loc;
                 end 
-            end 
-        end
+            end % step
+        end % sweep
+
+        % Remove no peak idxs 
+        temp = find(error(subject,:) == 1);
+        if ~isempty(temp)
+            msg = "\n     No peak found. Subject: " + subject + ". Sweep:" + num2str(temp) +  " "; 
+            fprintf(2,msg); 
+
+            step_index{CTL}(temp,:) = []; 
+            for i = [SOL, TA, FSR, ANG]
+                data{CTL,i}(temp,:) = []; 
+            end
+        end 
+
+        total_data{1,1,subject} = data; 
         total_step{1,1,subject} = step_index; % update step_index
-    end 
-    fprintf('done [ %4.2f sec ] \n', toc);
+    end % sub
+    fprintf('\n     done [ %4.2f sec ] \n', toc);
 else 
     fprintf('disable \n');
 end 
@@ -170,13 +185,20 @@ if remove_saturated
         for i = [SOL, TA, FSR, ANG]
             data{CTL,i}(exc_ctl{sub},:) = []; 
         end 
-    
+
+        % Display which step to remove
+        if ~isempty( exc_ctl{sub} )
+            msg = "\n     Saturated data. Subject: " + sub + ". Sweep: " + num2str(exc_ctl{sub}) + " "; 
+            fprintf(2,msg); 
+            
+        end 
+
         % Save data
         total_data{1,1,sub} = data; 
         total_step{1,1,sub} = step_index;
     end
     
-    fprintf('done [ %4.2f sec ] \n', toc);
+    fprintf('\n     done [ %4.2f sec ] \n', toc);
 else 
     fprintf('disable \n');
 end 
@@ -270,13 +292,13 @@ fprintf('done [ %4.2f sec ] \n', toc);
 fprintf('script: TASK0.2 Show average sweep  . . . ');
 
 show_plot = true;      % Disable or enable plot
-subject = 2;            % Obtions: 1:8
+subject = 3;            % Obtions: 1:8
 proto = CTL;            % Obtions: CTL, VER, HOR 
 str_sen = ["Position", "Soleus", "Tibialis"];    % Obtions: "Soleus", "Tibialis","Position", "Velocity", "Acceleration"; 
 show_FSR = true; 
 
-align_bool = false;      % Should the data be aligned with step specified in "Align with specific Stair step"
-    alignWithStep = 'second_begin'; 
+align_bool = true;      % Should the data be aligned with step specified in "Align with specific Stair step"
+    alignWithStep = align_with_obtions(1) ;
     before = 200; 
     after = 100; 
 
@@ -887,16 +909,14 @@ if show_plot
         plot(data_reg.pre_steps{step}, linearReg(data_reg.pre_steps{step}), "color", "red")
         subtitle("P-value " + p_value + ". R^2 " + r2)
     end
-
-
-filename = "all subject (1-8)";
-filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - EMG vs Pos(start-end) - Readjusted/';
-fullpath = fullfile(filepath, filename);
-saveas(gcf, fullpath, 'png');
-
-fprintf('done [ %4.2f sec ] \n', toc);
+    filename = "all subject (1-8)";
+    filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - EMG vs Pos(start-end) - Readjusted/';
+    fullpath = fullfile(filepath, filename);
+    saveas(gcf, fullpath, 'png');
+    
+    fprintf('done [ %4.2f sec ] \n', toc);
 else
-fprintf('disable \n');
+    fprintf('disable \n');
 end
 
 %% Task1.5 FC regression correlation with Soleus activity (steepest ascent)
@@ -913,7 +933,7 @@ end
 fprintf('script: TASK2.1  . . . '); tic
 
 show_plot = true;
-subject = 1; % 
+subject = 9; % 
 protocol = CTL; 
 before = 100; % [ms]
 after = 0; % [ms]
@@ -1045,7 +1065,7 @@ end
 %% task 2.2 Within step adjustment of EMG acticity due to natural angle variation. (single subject)
 fprintf('script: TASK2.2  . . . '); tic
 
-show_plt = true; 
+show_plt = false; 
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
 if show_plt
@@ -1102,7 +1122,7 @@ end
 %% task2.3 Within step adjustment of EMG acticity due to natural angle variation. (All subject)
 fprintf('script: TASK2.3  . . . '); tic
 
-show_plt = true; 
+show_plt = false; 
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
 low = 1; mid = 2; up = 3; 
@@ -1218,7 +1238,7 @@ end %show_plt
 % plot difference i hastighed ift soleus aktivitet som regression plot. 
 % 5 første stræk mod 5 sidste stræk 
 
-show_plt = true; 
+show_plt = false; 
 subject = 2; 
 before = 500; 
 after = 0; 
