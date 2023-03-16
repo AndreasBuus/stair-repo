@@ -69,7 +69,7 @@ fprintf('done [ %4.2f sec ] \n', toc);
 
 %% Readjust data to Local Peak instead of FSR 
 fprintf('script: Readjust data to Local Peak instead of FSR . . .'); tic
-readjust = true; 
+readjust = false; 
 show_gui = false; 
 gui_subject = 4; 
 protocol = CTL; 
@@ -283,6 +283,41 @@ for sub = 1:length(names) % subjects
 end
 fprintf('done [ %4.2f sec ] \n', toc);
 
+%% Weighted data 
+fprintf('script: weighting_data  . . . '); tic
+
+weighting_data = true; 
+
+if weighting_data
+    
+    % Find the subject with smallest subject size
+    threshold = 50; 
+    for sub = 1:numel(names)
+        data = total_data{1,1,sub}; 
+        sub_size = size(data{CTL,ANG},1); % sweep size 
+        if threshold > sub_size; threshold = sub_size; end 
+    end 
+    
+    % Remove sweeps larger than smallest subject size
+    for sub = 1:numel(names)
+        data = total_data{1,1,sub};         % load data
+        step_index = total_step{1,1,sub};   % load data 
+        sub_size = size(data{CTL,ANG},1);   % sweep size 
+        if sub_size > threshold 
+            step_index{CTL}(threshold+1:end,:) = []; 
+            for i = [SOL, TA, FSR, ANG]
+                data{CTL,i}(threshold+1:end,:) = []; 
+            end 
+        end
+        total_data{1,1,sub} = data;         % save data
+        total_step{1,1,sub} = step_index;   % save data
+    end 
+    fprintf('done [ %4.2f sec ] \n', toc);
+else 
+    fprintf('disable \n');
+end
+
+
 %% TASK0.1: Simplify the matlab script
 % Make the script accessible to be navigated by Andrew and Thomas. 
 % - clearify parameters meant to be adjusted. 
@@ -291,8 +326,8 @@ fprintf('done [ %4.2f sec ] \n', toc);
 %% TASK0.2 Show average sweep for single subject
 fprintf('script: TASK0.2 Show average sweep  . . . ');
 
-show_plot = true;      % Disable or enable plot
-subject = 3;            % Obtions: 1:8
+show_plot = false;      % Disable or enable plot
+subject = 1;            % Obtions: 1:8
 proto = CTL;            % Obtions: CTL, VER, HOR 
 str_sen = ["Position", "Soleus", "Tibialis"];    % Obtions: "Soleus", "Tibialis","Position", "Velocity", "Acceleration"; 
 show_FSR = true; 
@@ -503,126 +538,125 @@ end
 
 %% TASK1.1: FC regression correlation with Soleus activity. (Seperate steps, single subject) 
 % Find individuelle outliner og undersøg for refleks response. 
-
 fprintf('\nscript: TASK1.1  . . . '); tic
 
-%for subject = 1:10
 show_plot = true;           % plot the following figures for this task
-subject = 2;                % subject to analyse
+subject = 3;                % subject to analyse
 proto = CTL;                % Only works for pre and post baseline trials
-dep_sensory_modality = SOL; 
 before = 100; 
 after = 50;
 xlimits = [-100 100];
 
+%for subject = 1:2%numel(names)
+
 % .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 if show_plot
-if ~readjust
-    msg = "Be Aware: Data re-adjustment is disabled. Manuel defined search-bars applied . . . "; 
-    fprintf(2,msg); 
-else 
-    fprintf(' Data re-adjustment enabled. General search bar applied . . .')
-end
-
-% General search bars: 
-dep_off = 39; dep_len = 20; 
-step = 2; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
-step = 4; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
-step = 6; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
-
-% Preallocation
-predictor_value = cell(size(names)); 
-depended_value = cell(size(names)); 
-
-for sub = 1:length(names)   % loop through subjects
-    if ~readjust    % readjust disabled. Manuel search-bars applied
-        switch sub 
-        case 1
-            predict_search(2,:) = [1.5,1.5+20];  depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [-0.5,20-0.5]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [-2,20-2];     depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms 
-        case 2
-            predict_search(2,:) = [-12,20-12];   depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [3,20-3];      depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];  % ms 
-            predict_search(6,:) = [-4.5,20-4.5]; depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_off];   % ms 
-        case 3
-            predict_search(2,:) = [0.5, 20+0.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];   % ms 
-            predict_search(4,:) = [1.5, 1.5+20]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [3, 3+20];     depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];   % ms 
-        case 4
-            predict_search(2,:) = [-4.5, 20-4.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [-5.5, 20-5.5]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [-6.5, 20-6.5]; depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms 
-        case 5
-            predict_search(2,:) = [2, 2+20];      depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];   % ms 
-            predict_search(4,:) = [2.5, 2.5+20];  depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [2.5, 2.5+20];  depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];   % ms 
-        case 6 
-            predict_search(2,:) = [-2, 18];       depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [1, 21];        depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [0, 20];        depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms 
-        case 7
-            predict_search(2,:) = [-13.5, 20-13.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [-15.5, 20-15.5]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [-20.5, -0.5]; depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];   % ms 
-        case 8
-            predict_search(2,:) = [-20,0];        depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [-9.5,20-9.5];  depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [-9.5,20-9.5];  depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms  
-        case 9
-            predict_search(2,:) = [-53.5,20-53.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [-7,20-7];       depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [-41,20-41];     depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms  
-        case 10
-            predict_search(2,:) = [-69,20-69];     depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
-            predict_search(4,:) = [-56,20-56];     depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
-            predict_search(6,:) = [-61,20-61];      depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms  
-        end 
+    if ~readjust
+        msg = "Be Aware: Data re-adjustment is disabled. Manuel defined search-bars applied . . . "; 
+        fprintf(2,msg); 
+    else 
+        fprintf(' Data re-adjustment enabled. General search bar applied . . .')
     end
-
-    % remember values for later plt
-    if sub == subject 
-        predict_search_plt = predict_search; 
-        depend_search_plt = depend_search; 
-    end
-
-    % load data from defined subject defined by loop
-    data = total_data{1,1,sub};  
-    step_index = total_step{1,1,sub};
     
-    % find predictor and depended 
-    for step = [2,4,6]                      % loop through steps
-        for i = 1:size(data{proto,1},1)     % loop through sweeps    
-            % from ms to sample
-            predict_search_index = floor(msToSec(predict_search(step,:))*Fs);
-            depend_search_index = floor(msToSec(depend_search(step,:))*Fs);
+    % General search bars: 
+    dep_off = 39; dep_len = 20; 
+    step = 2; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
+    step = 4; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
+    step = 6; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
     
-            % find rise index for the given step and define window 
-            [rise, ~] = func_find_edge(step);
-            rise_index = step_index{proto}(i,rise);
-            predict_search_array = predict_search_index(1)+rise_index : predict_search_index(2)+rise_index; 
-            depend_search_array = depend_search_index(1)+rise_index : depend_search_index(2)+rise_index; 
-              
-            % find average values
-            %predictor_value(step,i) = mean(data{proto,pre_sensory_modality}((i), predict_search_array),2); 
-            predictor_value{sub}(step, i) = (data{proto,ANG}((i),predict_search_array(1)) - data{proto,ANG}((i),predict_search_array(end))) / diff(predict_search(step,:)); 
-            depended_value{sub}(SOL, step, i) = mean(data{proto,SOL}((i), depend_search_array),2);
-            depended_value{sub}(TA, step, i) = mean(data{proto,TA}((i), depend_search_array),2);
-        end 
-    end
-end 
+    % Preallocation
+    predictor_value = cell(size(names)); 
+    depended_value = cell(size(names)); 
+    
+    for sub = 1:length(names)   % loop through subjects
+        if ~readjust    % readjust disabled. Manuel search-bars applied
+            switch sub 
+            case 1
+                predict_search(2,:) = [1.5,1.5+20];  depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [-0.5,20-0.5]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [-2,20-2];     depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms 
+            case 2
+                predict_search(2,:) = [-12,20-12];   depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [3,20-3];      depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];  % ms 
+                predict_search(6,:) = [-4.5,20-4.5]; depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_off];   % ms 
+            case 3
+                predict_search(2,:) = [0.5, 20+0.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];   % ms 
+                predict_search(4,:) = [1.5, 1.5+20]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [3, 3+20];     depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];   % ms 
+            case 4
+                predict_search(2,:) = [-4.5, 20-4.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [-5.5, 20-5.5]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [-6.5, 20-6.5]; depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms 
+            case 5
+                predict_search(2,:) = [2, 2+20];      depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];   % ms 
+                predict_search(4,:) = [2.5, 2.5+20];  depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [2.5, 2.5+20];  depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];   % ms 
+            case 6 
+                predict_search(2,:) = [-2, 18];       depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [1, 21];        depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [0, 20];        depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms 
+            case 7
+                predict_search(2,:) = [-13.5, 20-13.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [-15.5, 20-15.5]; depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [-20.5, -0.5]; depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];   % ms 
+            case 8
+                predict_search(2,:) = [-20,0];        depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [-9.5,20-9.5];  depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [-9.5,20-9.5];  depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms  
+            case 9
+                predict_search(2,:) = [-53.5,20-53.5]; depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [-7,20-7];       depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [-41,20-41];     depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms  
+            case 10
+                predict_search(2,:) = [-69,20-69];     depend_search(2,:) = [predict_search(2,1)+dep_off,predict_search(2,1)+dep_off+dep_len];    % ms 
+                predict_search(4,:) = [-56,20-56];     depend_search(4,:) = [predict_search(4,1)+dep_off,predict_search(4,1)+dep_off+dep_len];    % ms 
+                predict_search(6,:) = [-61,20-61];      depend_search(6,:) = [predict_search(6,1)+dep_off,predict_search(6,1)+dep_off+dep_len];    % ms  
+            end 
+        end
+    
+        % remember values for later plt
+        if sub == subject 
+            predict_search_plt = predict_search; 
+            depend_search_plt = depend_search; 
+        end
+    
+        % load data from defined subject defined by loop
+        data = total_data{1,1,sub};  
+        step_index = total_step{1,1,sub};
+        
+        % find predictor and depended 
+        for step = [2,4,6]                      % loop through steps
+            for i = 1:size(data{proto,1},1)     % loop through sweeps    
+                % from ms to sample
+                predict_search_index = floor(msToSec(predict_search(step,:))*Fs);
+                depend_search_index = floor(msToSec(depend_search(step,:))*Fs);
+        
+                % find rise index for the given step and define window 
+                [rise, ~] = func_find_edge(step);
+                rise_index = step_index{proto}(i,rise);
+                predict_search_array = predict_search_index(1)+rise_index : predict_search_index(2)+rise_index; 
+                depend_search_array = depend_search_index(1)+rise_index : depend_search_index(2)+rise_index; 
+                  
+                % find average values
+                %predictor_value(step,i) = mean(data{proto,pre_sensory_modality}((i), predict_search_array),2); 
+                predictor_value{sub}(step, i) = (data{proto,ANG}((i),predict_search_array(1)) - data{proto,ANG}((i),predict_search_array(end))) / diff(predict_search(step,:)); 
+                depended_value{sub}(SOL, step, i) = mean(data{proto,SOL}((i), depend_search_array),2);
+                depended_value{sub}(TA, step, i) = mean(data{proto,TA}((i), depend_search_array),2);
+            end 
+        end
+    end 
 
-% load data for plot, defined by >> subject <<
-data = total_data{1,1,subject};  
-step_index = total_step{1,1,subject};
-
-screensize = get(0,'ScreenSize');
-width = screensize(3);
-height = screensize(4);
-
-% plot figure
-figSize = [50 50 width-200 height-200]; % where to plt and size
-figure('Position', figSize); % begin plot 
+    % load data for plot, defined by >> subject <<
+    data = total_data{1,1,subject};  
+    step_index = total_step{1,1,subject};
+    
+    screensize = get(0,'ScreenSize');
+    width = screensize(3);
+    height = screensize(4);
+    
+    % plot figure
+    figSize = [50 50 width-200 height-200]; % where to plt and size
+    figure('Position', figSize); % begin plot 
     sgtitle("TASK 1.1 Data: Prebaseline. Subject: " + subject + ". [n = " + size(data{proto,1},1) + "]."); 
 
     predict_search_plt = predict_search_plt; 
@@ -640,7 +674,7 @@ figure('Position', figSize); % begin plot
         data_plot = cell(3,7); 
         [data_plot{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', align_with_obtions(k));
 
-        subplot(5,3,0+k); hold on; % Ankel 
+        subplot(6,3,0+k); hold on; % Ankel 
             % formalia setup
             ylabel("Position");
             title("Step " + k*2)
@@ -661,7 +695,7 @@ figure('Position', figSize); % begin plot
             YL = get(gca, 'YLim'); ylim([YL(1) YL(2)]);
             patch(x_pat_pre,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
     
-        subplot(5,3,3+k); hold on; % velocity
+        subplot(6,3,3+k); hold on; % velocity
             % formalia setup
             ylabel(labels_ms(VEL));
             subtitle(labels(VEL) +" "+ predict_search_plt(steps_tested(k),1) + " : "+predict_search_plt(steps_tested(k),2)+"ms")
@@ -681,7 +715,7 @@ figure('Position', figSize); % begin plot
             YL = get(gca, 'YLim'); ylim([YL(1) YL(2)]);
             patch(x_pat_pre,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
             
-        subplot(5,3,6+k); hold on; % soleus
+        subplot(6,3,6+k); hold on; % soleus
             % formalia setup
             ylabel(labels_ms(SOL)); 
             subtitle(labels(SOL) +" "+ depend_search_plt(steps_tested(k),1) + " : "+depend_search_plt(steps_tested(k),2)+"ms")            
@@ -701,7 +735,7 @@ figure('Position', figSize); % begin plot
             YL = get(gca, 'YLim'); ylim([YL(1) YL(2)]);
             patch(x_pat_dep,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
 
-        subplot(5,3,9+k); hold on; % tibíalis
+        subplot(6,3,9+k); hold on; % tibíalis
              % formalia setup
             ylabel(labels_ms(TA)); 
             subtitle(labels(TA) +" "+ depend_search_plt(steps_tested(k),1) + " : "+depend_search_plt(steps_tested(k),2)+"ms")            
@@ -721,14 +755,32 @@ figure('Position', figSize); % begin plot
             YL = get(gca, 'YLim'); ylim([YL(1) YL(2)]);
             patch(x_pat_dep,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
 
-        subplot(5,3,12+k); hold on; % plot regression 
+        subplot(6,3,12+k); hold on; % plot regression 
             % formalia 
             xlabel("Pos(start-end)/window size")
-            ylabel("Avg. "+labels(dep_sensory_modality))
+            ylabel("Avg. "+labels(SOL))
             
             % plt data 
             depended = []; predictor = [];  
-            depended = nonzeros(squeeze(depended_value{subject}(dep_sensory_modality, steps_tested(k),:))); 
+            depended = nonzeros(squeeze(depended_value{subject}(SOL, steps_tested(k),:))); 
+            predictor = nonzeros(squeeze(predictor_value{subject}(steps_tested(k),:)));
+            mdl = fitlm(predictor, depended);
+            b = table2array(mdl.Coefficients(1,1)); 
+            a = table2array(mdl.Coefficients(2,1)); 
+            p_value = table2array(mdl.Coefficients(2,4)); 
+            linearReg = @(x) x*a + b;     
+            plot(predictor, depended,"x","color", "blue")          
+            plot(predictor, linearReg(predictor), "color", "red")
+            subtitle("Sweep average" + newline + "p-value: " + round(p_value,2))
+
+        subplot(6,3,15+k); hold on; % plot regression 
+            % formalia 
+            xlabel("Pos(start-end)/window size")
+            ylabel("Avg. "+labels(TA))
+            
+            % plt data 
+            depended = []; predictor = [];  
+            depended = nonzeros(squeeze(depended_value{subject}(TA, steps_tested(k),:))); 
             predictor = nonzeros(squeeze(predictor_value{subject}(steps_tested(k),:)));
             mdl = fitlm(predictor, depended);
             b = table2array(mdl.Coefficients(1,1)); 
@@ -741,66 +793,55 @@ figure('Position', figSize); % begin plot
     end 
 
     % Define the file name and path to save the PNG file
-    filename = "subject"+subject+"-"+labels(dep_sensory_modality)+".png";
-    filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - EMG vs Pos(start-end) - Readjusted/';
+    filename = "Subject"+subject+".png";
+    filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - control step regresion/readjusted and weighted/';
     fullpath = fullfile(filepath, filename);
     saveas(gcf, fullpath, 'png');
-fprintf('done [ %4.2f sec ] \n', toc);
+
+    marker = ["*",".","x"];    
+    color = [[0 0 1];[0.5 0 0.5];[1 .1 0]]; 
+    
+    figure; % begin plot
+    sgtitle("TASK 1.2 Data: Prebaseline. Subject: " + subject); 
+
+    for sensory_type = [SOL,TA]
+        subplot(1,2,sensory_type); hold on
+    
+        depended = []; predictor = [];  
+        for k = 1:3
+            depended(k,:) = nonzeros(squeeze(depended_value{subject}(sensory_type, steps_tested(k),:))); 
+            predictor(k,:) = nonzeros(squeeze(predictor_value{subject}(steps_tested(k),:)));
+            plot(predictor(k,:), depended(k,:), marker(k),"color", "blue")
+        end
+        
+        % linear regression 
+        depended_all_step = [depended(1,:) depended(2,:) depended(3,:)];
+        predictor_all_step = [predictor(1,:) predictor(2,:) predictor(3,:)];
+        mdl = fitlm(predictor_all_step, depended_all_step);   % <--- SIG
+        b = table2array(mdl.Coefficients(1,1)); 
+        a = table2array(mdl.Coefficients(2,1));
+        p_value = table2array(mdl.Coefficients(2,4)); 
+        linearReg = @(x) x*a + b; 
+        plot(predictor_all_step, linearReg(predictor_all_step), "color", "red")
+        
+        % plt formalia 
+        legend(["Data: Step 2", "Data: Step 4", "Data: Step 6","Fit"])
+        xlabel("Pos(start-end)/window size")
+        ylabel("Avg. " + labels(sensory_type))
+        title("p-value: " + round(p_value,2))
+    end 
+
+    filename = "All steps. Subject"+subject+".png";
+    % filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - control step regresion/readjusted and all samples/';
+    fullpath = fullfile(filepath, filename);
+    saveas(gcf, fullpath, 'png');
+
+    fprintf('done [ %4.2f sec ] \n', toc);
 else
-fprintf('disable \n');
+    fprintf('disable \n');
 end
 
-%% TASK1.2: FC regression correlation with Soleus activity (All Step, single subject) 
-% Same task as task1, but all steps considered as the same. 
-
-fprintf('script: TASK1.2  . . . '); tic
-show_plot = true; 
-
-
-if show_plot
-marker = ["*",".","x"];    
-color = [[0 0 1];[0.5 0 0.5];[1 .1 0]]; 
-
-figure; % begin plot
-sgtitle("TASK 1.2 Data: Prebaseline. Subject: " + subject); 
-
-for sensory_type = [SOL,TA]
-    subplot(1,2,sensory_type); hold on
-
-    depended = []; predictor = [];  
-    for k = 1:3
-        depended(k,:) = nonzeros(squeeze(depended_value{subject}(sensory_type, steps_tested(k),:))); 
-        predictor(k,:) = nonzeros(squeeze(predictor_value{subject}(steps_tested(k),:)));
-        plot(predictor(k,:), depended(k,:), marker(k),"color", "blue")
-    end
-    
-    % linear regression 
-    depended_all_step = [depended(1,:) depended(2,:) depended(3,:)];
-    predictor_all_step = [predictor(1,:) predictor(2,:) predictor(3,:)];
-    mdl = fitlm(predictor_all_step, depended_all_step);   % <--- SIG
-    b = table2array(mdl.Coefficients(1,1)); 
-    a = table2array(mdl.Coefficients(2,1));
-    p_value = table2array(mdl.Coefficients(2,4)); 
-    linearReg = @(x) x*a + b; 
-    plot(predictor_all_step, linearReg(predictor_all_step), "color", "red")
-    
-    % plt formalia 
-    legend(["Data: Step 2", "Data: Step 4", "Data: Step 6","Fit"])
-    xlabel("Pos(start-end)/window size")
-    ylabel("Avg. " + labels(sensory_type))
-    title("p-value: " + round(p_value,2))
-end 
-
-filename = "subject"+subject+"-all steps.png";
-filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - EMG vs Pos(start-end) - Readjusted/';
-fullpath = fullfile(filepath, filename);
-saveas(gcf, fullpath, 'png');
-
-fprintf('done [ %4.2f sec ] \n', toc);
-else
-fprintf('disable \n');
-end
-
+%end
 
 %% TASK1.3: FC regression correlation with EMG (Seperate steps, All subject) 
 fprintf('script: TASK1.3  . . .'); tic
@@ -909,8 +950,7 @@ if show_plot
         plot(data_reg.pre_steps{step}, linearReg(data_reg.pre_steps{step}), "color", "red")
         subtitle("P-value " + p_value + ". R^2 " + r2)
     end
-    filename = "all subject (1-8)";
-    filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - EMG vs Pos(start-end) - Readjusted/';
+    filename = "All subject (1-"+numel(names)+").png";
     fullpath = fullfile(filepath, filename);
     saveas(gcf, fullpath, 'png');
     
@@ -932,8 +972,8 @@ end
 % two plot: inden burst activitet og til max burst activitet (all subject)
 fprintf('script: TASK2.1  . . . '); tic
 
-show_plot = true;
-subject = 9; % 
+show_plot = false;
+subject = 2; % 
 protocol = CTL; 
 before = 100; % [ms]
 after = 0; % [ms]
