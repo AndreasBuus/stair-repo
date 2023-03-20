@@ -5,7 +5,7 @@ close all;
 %% Folders 
 fprintf('script: Folder . . . '); tic
 
-names = ["thomas", "benedikte", "andreas", "andrew", "gritt", "maria", "trine", "trine2", "Christian", "Soeren"]; % MIA
+names = ["thomas", "benedikte", "andreas", "andrew", "gritt", "maria", "trine", "trine2","Christian", "Soeren"]; % MIA
 % CTL2: andrew, Gritt, thomas, Mia, Trine, Trine 2
 
 % Define data path
@@ -51,8 +51,8 @@ align_with_obtions = ["second_begin", "four_begin", "six_begin"];
 steps_tested = [2,4,6];
 
 % Global function
-msToSec = @(x) x*10^-3;         % Ms to sec 
-secToMs = @(x) x*10^3;          % Sec to ms 
+ms2sec = @(x) x*10^-3;         % Ms to sec 
+sec2ms = @(x) x*10^3;          % Sec to ms 
 
 fprintf('done [ %4.2f sec ] \n', toc);
 
@@ -160,7 +160,7 @@ span = [0, 20];             % ms
 if remove_saturated  
 
     % From ms to samples 
-    span = msToSec(span)*Fs;        % from ms to sample
+    span = ms2sec(span)*Fs;        % from ms to sample
     exc_ctl = cell(size(names));    % exclude Control
     
     for sub = 1:numel(names) % loop through subjects
@@ -286,7 +286,7 @@ fprintf('done [ %4.2f sec ] \n', toc);
 %% Weighted data 
 fprintf('script: weighting_data  . . . '); tic
 
-weighting_data = true; 
+weighting_data = false; 
 
 if weighting_data
     
@@ -346,17 +346,17 @@ if align_bool
     data = total_data{1,1,subject}; 
     step_index = total_step{1,1,subject};
     temp = cell(3,7); 
-    [temp{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', alignWithStep);
+    [temp{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', alignWithStep);
     clear data
     data = temp;
     x_axis = data{proto,time};
-    x_axis = secToMs(x_axis);
+    x_axis = sec2ms(x_axis);
     str_xlabel = "Time [ms]" + newline + "Data normalized to step four"; 
 else 
     % Load data 
     data = total_data{1,1,subject}; 
     x_axis = linspace(-4, 6-dt, N); 
-    x_axis = secToMs(x_axis); 
+    x_axis = sec2ms(x_axis); 
     str_xlabel = "Time [ms]" + newline + "Data normalized to Force-Platform";
 end 
 
@@ -482,9 +482,9 @@ figure; % Begin plot
         for k = 1:3
             clear data_align
             data_align = cell(3,7); 
-            [data_align{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', align_with_obtions(k));
+            [data_align{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', align_with_obtions(k));
             x_axis = data_align{proto,time};
-            y{k,2} = secToMs(x_axis);
+            y{k,2} = sec2ms(x_axis);
             y{k,1} = data_align{proto,sensor_modality}(sweep,:); 
             y{k,3} = mean(data_align{proto,sensor_modality},1);
         end 
@@ -540,14 +540,13 @@ end
 % Find individuelle outliner og undersøg for refleks response. 
 fprintf('\nscript: TASK1.1  . . . '); tic
 
-show_plot = true;           % plot the following figures for this task
-subject = 3;                % subject to analyse
+show_plot = false;           % plot the following figures for this task
+subject = 1;                % subject to analyse
 proto = CTL;                % Only works for pre and post baseline trials
 before = 100; 
 after = 50;
 xlimits = [-100 100];
-
-%for subject = 1:2%numel(names)
+savepgn = false; 
 
 % .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 if show_plot
@@ -559,7 +558,7 @@ if show_plot
     end
     
     % General search bars: 
-    dep_off = 39; dep_len = 20; 
+    dep_off = 59; dep_len = 20; 
     step = 2; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
     step = 4; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
     step = 6; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
@@ -628,8 +627,8 @@ if show_plot
         for step = [2,4,6]                      % loop through steps
             for i = 1:size(data{proto,1},1)     % loop through sweeps    
                 % from ms to sample
-                predict_search_index = floor(msToSec(predict_search(step,:))*Fs);
-                depend_search_index = floor(msToSec(depend_search(step,:))*Fs);
+                predict_search_index = floor(ms2sec(predict_search(step,:))*Fs);
+                depend_search_index = floor(ms2sec(depend_search(step,:))*Fs);
         
                 % find rise index for the given step and define window 
                 [rise, ~] = func_find_edge(step);
@@ -672,7 +671,7 @@ if show_plot
         x_pat_dep = [depend_search_plt(steps_tested(k),1) depend_search_plt(steps_tested(k),2) depend_search_plt(steps_tested(k),2) depend_search_plt(steps_tested(k),1)];
     
         data_plot = cell(3,7); 
-        [data_plot{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', align_with_obtions(k));
+        [data_plot{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', align_with_obtions(k));
 
         subplot(6,3,0+k); hold on; % Ankel 
             % formalia setup
@@ -687,7 +686,7 @@ if show_plot
             curve1 = y + std_dev;
             curve2 = y - std_dev;
             x_axis = data_plot{proto,time};
-            x_axis = secToMs(x_axis);
+            x_axis = sec2ms(x_axis);
             x2 = [x_axis, fliplr(x_axis)];
             inBetween = [curve1, fliplr(curve2)];   
             fill(x2, inBetween, [0.75, 0.75, 0.75], 'LineStyle','none'); 
@@ -707,7 +706,7 @@ if show_plot
             curve1 = y + std_dev;
             curve2 = y - std_dev;
             x_axis = data_plot{proto,time};
-            x_axis = secToMs(x_axis);
+            x_axis = sec2ms(x_axis);
             x2 = [x_axis, fliplr(x_axis)];
             inBetween = [curve1, fliplr(curve2)];   
             fill(x2, inBetween, [0.75, 0.75, 0.75], 'LineStyle','none'); 
@@ -727,7 +726,7 @@ if show_plot
             curve1 = y + std_dev;
             curve2 = y - std_dev;
             x_axis = data_plot{proto,time};
-            x_axis = secToMs(x_axis);
+            x_axis = sec2ms(x_axis);
             x2 = [x_axis, fliplr(x_axis)];
             inBetween = [curve1, fliplr(curve2)];   
             fill(x2, inBetween, [0.75, 0.75, 0.75], 'LineStyle','none'); 
@@ -747,7 +746,7 @@ if show_plot
             curve1 = y + std_dev;
             curve2 = y - std_dev;
             x_axis = data_plot{proto,time};
-            x_axis = secToMs(x_axis);
+            x_axis = sec2ms(x_axis);
             x2 = [x_axis, fliplr(x_axis)];
             inBetween = [curve1, fliplr(curve2)];   
             fill(x2, inBetween, [0.75, 0.75, 0.75], 'LineStyle','none'); 
@@ -794,9 +793,11 @@ if show_plot
 
     % Define the file name and path to save the PNG file
     filename = "Subject"+subject+".png";
-    filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - control step regresion/readjusted and weighted/';
+    filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - control step regresion/non-readjusted and all samples/';
     fullpath = fullfile(filepath, filename);
-    saveas(gcf, fullpath, 'png');
+    if savepgn
+        saveas(gcf, fullpath, 'png'); 
+    end
 
     marker = ["*",".","x"];    
     color = [[0 0 1];[0.5 0 0.5];[1 .1 0]]; 
@@ -834,18 +835,18 @@ if show_plot
     filename = "All steps. Subject"+subject+".png";
     % filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/task1 - control step regresion/readjusted and all samples/';
     fullpath = fullfile(filepath, filename);
-    saveas(gcf, fullpath, 'png');
+    if savepgn; saveas(gcf, fullpath, 'png'); end
 
     fprintf('done [ %4.2f sec ] \n', toc);
 else
     fprintf('disable \n');
 end
 
-%end
+
 
 %% TASK1.3: FC regression correlation with EMG (Seperate steps, All subject) 
 fprintf('script: TASK1.3  . . .'); tic
-show_plot = true; 
+show_plot = false; 
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
 if show_plot
@@ -881,8 +882,8 @@ if show_plot
     
     
     % plt subject data in different colors 
-    for sub = 1:numel(names)
-        for sensory_type = [SOL,TA] % loop 
+    for sub = 1:numel(names) % subject
+        for sensory_type = [SOL,TA] % muscle type
             depended = []; predictor = [];  
             for k = 1:3 % loop steps 
                 depended(k,:) = nonzeros(squeeze(depended_value{sub}(sensory_type, steps_tested(k),:))); 
@@ -899,6 +900,12 @@ if show_plot
             % plt the combined steps 
             subplot(2,5, 4+5*(sensory_type-1):5+5*(sensory_type-1)); hold on % 4+5*(s-1)={4,9}, 5+5*(s-1)={5,10} s={1,2}
             plot(predictor(:)', depended(:)','x')
+
+            mdl = fitlm(predictor(:), depended(:));   % <--- SIG
+            b = table2array(mdl.Coefficients(1,1)); 
+            a = table2array(mdl.Coefficients(2,1));
+            p_value = table2array(mdl.Coefficients(2,4)); 
+            slopes(sub,sensory_type) = a;
             title("All steps")
             subtitle("P-value " + "R^2")
             ylabel(labels(sensory_type))
@@ -952,7 +959,7 @@ if show_plot
     end
     filename = "All subject (1-"+numel(names)+").png";
     fullpath = fullfile(filepath, filename);
-    saveas(gcf, fullpath, 'png');
+    if savepgn; saveas(gcf, fullpath, 'png'); end
     
     fprintf('done [ %4.2f sec ] \n', toc);
 else
@@ -962,9 +969,26 @@ end
 %% Task1.5 FC regression correlation with Soleus activity (steepest ascent)
 % Find the best parameters for one subject and apply them to the other
 %    subjects. 
-% 
+pltShow = false; 
 
-%% TASK2.1: Within step adjustment of EMG acticity due to natural angle variation (single subject)
+
+if pltShow 
+    figure; hold on 
+    xlim([0.5, 2.5])
+    title("")
+    ylabel("Correlations"+newline+"Slopes")
+    grid on;
+    plot([0,3],[0,0], "color", "black")
+    title("Individuals subjecs mean slope, all steps")
+    subtitle(['{\color{blue} Marks, Soleus [n=' num2str(size(slopes,1)) '].}, {\color{red} Marks, Tibialis [n=' num2str(size(slopes,1)) ']}, Circle, group mean'])
+    plot(1, mean(slopes(:,SOL)), 'o', "color", "black", 'LineWidth', 3)
+    plot(ones(1,size(slopes,1)), slopes(:,SOL), 'p', "color", "blue")
+    
+    plot(2, mean(slopes(:,TA)), 'o', "color", "black",'LineWidth', 3)
+    plot(ones(1,size(slopes,1))+1, slopes(:,TA), 'p', "color", "red")
+end
+
+%% TASK2.1 Within step adjustment of EMG acticity due to natural angle variation (single subject)
 % Find whether the EMG activity is passively adjusted to changes in angle
 %    trajectories. 
 % All steps and seperated step 
@@ -996,7 +1020,7 @@ if show_plot
         % align data needed to be plotted
         clear temp_plot
         temp_plot = cell(3,7); 
-        [temp_plot{protocol,:}] = func_align(step_index{protocol}, data{proto,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', align_with_obtions(step));
+        [temp_plot{protocol,:}] = func_align(step_index{protocol}, data{proto,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', align_with_obtions(step));
         x_axis = temp_plot{protocol, time};
           
         % align data needed to calculate window avg
@@ -1102,7 +1126,7 @@ else
 fprintf('disable \n');
 end   
 
-%% task 2.2 Within step adjustment of EMG acticity due to natural angle variation. (single subject)
+%% task2.2 Within step adjustment of EMG acticity due to natural angle variation. (single subject)
 fprintf('script: TASK2.2  . . . '); tic
 
 show_plt = false; 
@@ -1161,7 +1185,6 @@ end
 
 %% task2.3 Within step adjustment of EMG acticity due to natural angle variation. (All subject)
 fprintf('script: TASK2.3  . . . '); tic
-
 show_plt = false; 
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
@@ -1235,7 +1258,7 @@ if show_plt
     figure; hold on; 
     blue = 	[0 0 1]; red = [1 0 0]; gray = [150 152 158]/255;
 
-    subplot(311)
+    subplot(211)
         title("Within step adjustment - All Subject",'FontName','FixedWidth')
         grpLabels = {'Step 2', 'Step 4', 'Step 6', 'All steps'}; 
         sublabels = {'low', 'mid', 'up'};
@@ -1247,24 +1270,11 @@ if show_plt
     
 
     % Plot boxplot for single subject
-    subplot(312);hold on; 
+    subplot(212);hold on; 
         boxplotGroup(x_ta,'primaryLabels',sublabels,'SecondaryLabels',grpLabels, 'interGroupSpace',2,'GroupLines',true, 'Colors',[red; gray; blue],'GroupType','betweenGroups')
         %ylim([YL_ta(1) YL_ta(2)]
         ylim([0 0.5])
         ylabel("Normalized muscle activity"+newline+"Tibialis")
-
-    subplot(313);hold on; 
-        boxplotGroup(x_all,'primaryLabels',sublabels,'SecondaryLabels',grpLabels, 'interGroupSpace',2,'GroupLines',true, 'Colors',[red; gray; blue],'GroupType','betweenGroups')
-        ylim([0 0.5])
-        ylabel("Normalized muscle activity"+ newline +"for all muscles")
-
-
-    % Verify code
-    % y = [mean(group_low); mean(group_mid); mean(group_up)];
-    % % Bar plot 
-    % figure; 
-    % gray = [226,226,226]/255;
-    % bar(y, 'FaceColor', gray)
 
 fprintf('done [ %4.2f sec ] \n', toc);
 else 
@@ -1283,19 +1293,32 @@ subject = 2;
 before = 500; 
 after = 0; 
 xlimit = [-100 200];
-
-
+firstSweep = true; 
+pltDiff = false; 
 
 clear offset 
-offset(1) = 30; 
-offset(2) = 13; %38;
-offset(3) = 19;
-offset(4) = 0;
-offset(5) = 10;  %31;
-offset(6) = 36;
-offset(7) = 40;
-offset(8) = 38;
+switch firstSweep
+    case true 
+        offset(1) = 18; %30; 
+        offset(2) = 13; %38;
+        offset(3) = 19; %19
+        offset(4) = 0;
+        offset(5) = 10;  %31;
+        offset(6) = 22;  %31.5;
+        offset(7) = 18;  %23;
+        offset(8) = 26;
+    case false
+        offset(1) = 30; 
+        offset(2) = 38;
+        offset(3) = 19;
+        offset(4) = 0;
+        offset(5) = 31;
+        offset(6) = 31.5;
+        offset(7) = 23;
+        offset(8) = 26;
+end
 
+%  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 
 if show_plt
     data = total_data{1,1,subject};  
@@ -1304,13 +1327,14 @@ if show_plt
 
     clear temp_plot
     temp_plot = cell(3,7); 
-    [temp_plot{HOR,:}] = func_align(step_index{HOR}, data{HOR,[1:4,6:7]}, 'sec_before', msToSec(before), 'sec_after', msToSec(after), 'alignStep', "four_begin");
-    x_axis = secToMs(temp_plot{HOR, time});
+    [temp_plot{HOR,:}] = func_align(step_index{HOR}, data{HOR,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', "four_begin");
+    x_axis = sec2ms(temp_plot{HOR, time});
 
     %plot properties 
     no_color = [0.75, 0.75, 0.75]; 
     yes_color = "black";
     zero_color = "red"; 
+    diff_color = "green"; 
     no_LineWidth = 3; 
     yes_LineWidth = 1; 
     zero_LineWidth = 1; 
@@ -1326,7 +1350,15 @@ if show_plt
     lineWidth_patch = 2; 
     x_pat_SLR = [offset(subject)+39 offset(subject)+59 offset(subject)+59 offset(subject)+39];
     x_pat_MLR = [offset(subject)+59 offset(subject)+79 offset(subject)+79 offset(subject)+59];
+    
+    dep1 = find(floor(x_axis) == x_pat_SLR(1)); dep1 = dep1(1); 
+    dep2 = find(floor(x_axis) == x_pat_SLR(2)); dep2 = dep2(1); 
 
+    depM1 = find(floor(x_axis) == x_pat_MLR(1)); depM1 = depM1(1); 
+    depM2 = find(floor(x_axis) == x_pat_MLR(2)); depM2 = depM2(1); 
+
+    pre1 = find(floor(x_axis) == offset(subject)); pre1 = pre1(1);
+    pre2 = find(floor(x_axis) == offset(subject)+20); pre2 = pre2(1);
 
     % Check if a figure with the name 'TASK3' is open
     fig = findobj('Name', 'TASK3');
@@ -1340,7 +1372,7 @@ if show_plt
     sgtitle("Horizontal. Subject " + subject)
   
     sensortype = ANG; % position 
-    subplot(411); hold on; 
+    subplot(4,4,1:3); hold on; 
         % plot formalia (411)       
         title(['{\color{gray}Control sweeps [n=' num2str(length(no)) '].} Perturbation sweeps [n=' num2str(length(yes)) '].  {\color{red} Perturbation onset ' num2str(offset(subject)) ' [ms] }' ])
         subtitle(labels(sensortype))
@@ -1349,17 +1381,24 @@ if show_plt
                 
         % plot data (411)
         plot(x_axis , mean(temp_plot{HOR,sensortype}(no,:),1), 'LineWidth',no_LineWidth, 'Color',no_color)
-                plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"blue")
-
         plot(x_axis , mean(temp_plot{HOR,sensortype}(yes,:),1), 'LineWidth',yes_LineWidth, 'Color',yes_color)
-        plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        if firstSweep
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"blue")
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        end 
+
+        if pltDiff
+           plot(x_axis, zeros(size(x_axis)), "color", "black")
+            y =mean(temp_plot{HOR,sensortype}(yes,:),1) - mean(temp_plot{HOR,sensortype}(no(1:5),:),1);
+           plot(x_axis , y, 'LineWidth',yes_LineWidth, 'Color', diff_color)
+        end 
 
         YL = get(gca, 'YLim'); ylim([YL(1) YL(2)])        
         plot([offset(subject) offset(subject)],[-100 100], 'lineWidth', zero_LineWidth, 'Color',zero_color)
 
     
     sensortype = VEL; % velocity
-    subplot(412); hold on; 
+    subplot(4,4,5:7); hold on; 
         % plot formalia (412)
         subtitle(labels(sensortype))
         ylabel(labels_ms(sensortype))
@@ -1368,27 +1407,42 @@ if show_plt
 
         % plot data (412)
         plot(x_axis , mean(temp_plot{HOR,sensortype}(no,:),1), 'LineWidth',no_LineWidth, 'Color',no_color)
-        plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"blue")
-
         plot(x_axis , mean(temp_plot{HOR,sensortype}(yes,:),1), 'LineWidth',yes_LineWidth, 'Color',yes_color)
-        plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        if firstSweep
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"blue") % 
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        end 
+
+        if pltDiff
+           y = mean(temp_plot{HOR,sensortype}(yes,:),1) - mean(temp_plot{HOR,sensortype}(no,:),1);
+           plot(x_axis, zeros(size(x_axis)), "color", "black")
+           plot(x_axis , y, 'LineWidth',yes_LineWidth, 'Color', diff_color)
+        end 
 
         YL = get(gca, 'YLim'); ylim([YL(1) YL(2)])
         plot([offset(subject) offset(subject)],[-100 100], 'lineWidth', zero_LineWidth, 'Color',zero_color)
 
     
     sensortype = SOL; % soleus 
-    subplot(413); hold on; 
+    subplot(4,4,9:11); hold on; 
         % plot formalia (413)
         subtitle(labels(SOL))
         ylabel(labels(sensortype))
         
         % plot data (413)
         plot(x_axis , mean(temp_plot{HOR,sensortype}(no,:),1), 'LineWidth',no_LineWidth, 'Color',no_color)
-                plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"Blue")
-
         plot(x_axis , mean(temp_plot{HOR,sensortype}(yes,:),1), 'LineWidth',yes_LineWidth, 'Color',yes_color)
-                plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        
+        if firstSweep
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"Blue")
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        end 
+
+       if pltDiff
+           y = mean(temp_plot{HOR,sensortype}(yes,:),1) - mean(temp_plot{HOR,sensortype}(no,:),1);
+           plot(x_axis, zeros(size(x_axis)), "color", "black")
+           plot(x_axis , y, 'LineWidth',yes_LineWidth, 'Color', diff_color)
+        end 
 
         YL = get(gca, 'YLim'); ylim([YL(1) YL(2)])
         plot([offset(subject) offset(subject)],[-100 100], 'lineWidth', zero_LineWidth, 'Color',zero_color)
@@ -1396,9 +1450,28 @@ if show_plt
         patch(x_pat_SLR,y_pat,patchcolor_slr,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
         patch(x_pat_MLR,y_pat,patchcolor_mlr,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
 
+    subplot(4,4,12); hold on; 
+        ylabel("avg. SOL"); 
+        xlabel("avg. POS")
+
+        if ~pltDiff
+            dependSLR(:) = mean(temp_plot{HOR,sensortype}(yes,[dep1:dep2]),2); 
+            dependMLR(:) = mean(temp_plot{HOR,sensortype}(yes,[depM1:depM2]),2); 
+        else 
+            signal = temp_plot{HOR,sensortype}(yes,:) - temp_plot{HOR,sensortype}(no(1:numel(yes)),:); 
+            dependSLR(:) = mean(signal(:,[dep1:dep2]),2); 
+            dependMLR(:) = mean(signal(:,[depM1:depM2]),2); 
+        end
+
+        predict(:) = mean(temp_plot{HOR,ANG}(yes,[pre1:pre2]),2);
+        plot(predict, dependSLR, 'p', "color", "blue") 
+        plot(predict, dependMLR, 'p', "color", "black") 
+            
+        
+
 
     sensortype = TA; % tibialis 
-    subplot(414); hold on;
+    subplot(4,4,13:15); hold on;
         % plot formalia (414)
         subtitle(labels(sensortype))
         ylabel(labels(sensortype))
@@ -1406,16 +1479,50 @@ if show_plt
     
         % plot data (414)
         plot(x_axis , mean(temp_plot{HOR,sensortype}(no,:),1), 'LineWidth',no_LineWidth, 'Color',no_color)
-        plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"blue")
-
         plot(x_axis , mean(temp_plot{HOR,sensortype}(yes,:),1), 'LineWidth',yes_LineWidth, 'Color',yes_color)
-        plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        if firstSweep
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(no(1:5),:),1), 'LineWidth',no_LineWidth, 'Color',"blue")
+            plot(x_axis , mean(temp_plot{HOR,sensortype}(yes(1:5),:),1), 'LineWidth',yes_LineWidth, 'Color',"red")
+        end
+
+        if pltDiff
+           y = mean(temp_plot{HOR,sensortype}(yes,:),1) - mean(temp_plot{HOR,sensortype}(no,:),1);
+           plot(x_axis, zeros(size(x_axis)), "color", "black")
+           plot(x_axis , y, 'LineWidth',yes_LineWidth, 'Color', diff_color)
+        end 
 
         YL = get(gca, 'YLim'); ylim([YL(1) YL(2)])
         plot([offset(subject) offset(subject)],[-100 100], 'lineWidth', zero_LineWidth, 'Color',zero_color)
         if ~isempty(xlimit), xlim(xlimit); end 
         patch(x_pat_SLR,y_pat,patchcolor_slr,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
         patch(x_pat_MLR,y_pat,patchcolor_mlr,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
+
+    subplot(4,4,16); hold on; 
+
+        if ~pltDiff
+            dependSLR(:) = mean(temp_plot{HOR,sensortype}(yes,[dep1:dep2]),2); 
+            dependMLR(:) = mean(temp_plot{HOR,sensortype}(yes,[depM1:depM2]),2); 
+        else 
+            signal = temp_plot{HOR,sensortype}(yes,:) - temp_plot{HOR,sensortype}(no(1:numel(yes)),:); 
+            dependSLR(:) = mean(signal(:,[dep1:dep2]),2); 
+            dependMLR(:) = mean(signal(:,[depM1:depM2]),2); 
+        end
+
+        predict(:) = mean(temp_plot{HOR,ANG}(yes,[pre1:pre2]),2);
+        plot(predict, dependSLR, 'p', "color", "blue") 
+        plot(predict, dependMLR, 'p', "color", "black") 
+        ylabel("avg. TA"); 
+        xlabel("avg. POS")
+
+
+
+
+%         predictSLR(:) = mean(temp_plot{HOR,sensortype}(yes,[pre1:pre2]),2);
+%         plot(predictSLR, dependSLR, 'p', "color", "blue") 
+% 
+%         plot(dependMLR, dependSLR(1:numel(dependMLR)), 'p', "color", "black") 
+
+
 
 %     filename = "Horizontal. Subject "+subject+".png";
 %     filepath = 'C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/png files/Task3 - Horizontal perturbation/';
@@ -1427,47 +1534,97 @@ end
 %% TASK3.2 Horizontal perturbation boxplot 
 % Show boxplot where all subject can clearly be identified. 
 show_plt = false; 
+inc_sub = [1,2,3,4,5,6,7,8]; 
 
+
+%   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .  
 cnt = 0; 
 SLR = 1; MLR = 2; 
+clear h_pert
+h_pert = struct; 
+
+if firstSweep
+    box_dim = 1:5; 
+else 
+    box_dim = 1:19; 
+end
+
 if show_plt
     clear avg_CTL avg_CTL
-    for sub = [1,2,3,5,6,7,8]
+    for sub = inc_sub
         cnt = cnt + 1; 
         data = total_data{1,1,sub};  
         step_index = total_step{1,1,sub};
         type = total_type{1,1,sub}; yes = type{3}; no = type{4}; 
-        
+
         clear temp_data
         temp_data = cell(3,7); 
         [temp_data{HOR,:}] = func_align(step_index{HOR}, data{HOR,[1:4,6:7]}, 'alignStep', "four_begin");
-        [temp_data{CTL,:}] = func_align(step_index{CTL}, data{CTL,[1:4,6:7]}, 'alignStep', "four_begin");
 
-        SLR_begin = floor(msToSec(offset(sub)+39)*Fs);
-        SLR_end = floor(msToSec(offset(sub)+59)*Fs);
-        MLR_begin = floor(msToSec(offset(sub)+60)*Fs);
-        MLR_end = floor(msToSec(offset(sub)+80)*Fs);
+        % Define window for each subject
+        SLR_begin = floor(ms2sec(offset(sub)+39)*Fs); SLR_end = floor(ms2sec(offset(sub)+59)*Fs); % [length=41]
+        MLR_begin = floor(ms2sec(offset(sub)+60)*Fs); MLR_end = floor(ms2sec(offset(sub)+80)*Fs); % [length=41]
 
-        avg_CTL(SLR,cnt,SOL) = mean(temp_data{CTL,SOL}(:,[SLR_begin : SLR_end]),[1:2]);
-        avg_CTL(MLR,cnt,SOL) = mean(temp_data{CTL,TA}(:,[SLR_begin : SLR_end]),[1:2]);
-        avg_CTL(SLR,cnt,TA) = mean(temp_data{CTL,SOL}(:,[MLR_begin : MLR_end]),[1:2]);
-        avg_CTL(MLR,cnt,TA) = mean(temp_data{CTL,TA}(:,[MLR_begin : MLR_end]),[1:2]);
+        for muscle = [SOL, TA]
+            % Short lantency reflex 
+            h_pert.CTL(cnt,muscle,SLR,:) = mean(temp_data{HOR,muscle}(no(box_dim) , [SLR_begin : SLR_end]),(2));  
+            h_pert.HOR(cnt,muscle,SLR,:) = mean(temp_data{HOR,muscle}(yes(box_dim), [SLR_begin : SLR_end]),(2)); 
+    
+            % Medium lantency reflex
+            h_pert.CTL(cnt,muscle,MLR,:) = mean(temp_data{HOR,muscle}(no(box_dim) , [MLR_begin : MLR_end]),(2));
+            h_pert.HOR(cnt,muscle,MLR,:) = mean(temp_data{HOR,muscle}(yes(box_dim), [MLR_begin : MLR_end]),(2));
+        end
+    end % sub
+    
+    % Box plot data arrangement, all subject 
+    x_sol_control = [mean(squeeze(h_pert.CTL(:,SOL,SLR,:)),2)' ; mean(squeeze(h_pert.CTL(:,SOL,MLR,:)),2)'];
+    x_sol_pert    = [mean(squeeze(h_pert.HOR(:,SOL,SLR,:)),2)' ; mean(squeeze(h_pert.HOR(:,SOL,MLR,:)),2)'];
+    x_ta_control  = [mean(squeeze(h_pert.CTL(:,TA,SLR,:)),2)'  ; mean(squeeze(h_pert.CTL(:,TA,MLR,:)),2)'  ];
+    x_ta_pert     = [mean(squeeze(h_pert.HOR(:,TA,SLR,:)),2)'  ; mean(squeeze(h_pert.HOR(:,TA,MLR,:)),2)'];
+    box_soleus   = {x_sol_control', x_sol_pert'}; 
+    box_tibialis = {x_ta_control', x_ta_pert'}; 
 
-        avg_hor(SLR,cnt,SOL) = mean(temp_data{HOR,SOL}(:,[SLR_begin : SLR_end]),[1:2]);
-        avg_hor(MLR,cnt,SOL) = mean(temp_data{HOR,TA}(:,[SLR_begin : SLR_end]),[1:2]);
-        avg_hor(SLR,cnt,TA) = mean(temp_data{HOR,SOL}(:,[MLR_begin : MLR_end]),[1:2]);
-        avg_hor(MLR,cnt,TA) = mean(temp_data{HOR,TA}(:,[MLR_begin : MLR_end]),[1:2]);
-    end 
+    % Box plot data arrangement, individuel subject 
+    box_soleus_slr   = {squeeze(h_pert.CTL(:,SOL,SLR,:))',squeeze(h_pert.HOR(:,SOL,SLR,:))'};  
+    box_tibialis_slr = {squeeze(h_pert.CTL(:,TA,SLR,:))',squeeze(h_pert.HOR(:,TA,SLR,:))'};  
+    box_soleus_mlr   = {squeeze(h_pert.CTL(:,SOL,MLR,:))',squeeze(h_pert.HOR(:,SOL,MLR,:))'};  
+    box_tibialis_mlr = {squeeze(h_pert.CTL(:,TA,MLR,:))',squeeze(h_pert.HOR(:,TA,MLR,:))'};  
 
-   group_control_sol = [avg_CTL(SLR,:,SOL)' ; avg_CTL(MLR,:,SOL)'];
-   group_control_sol = [avg_CTL(SLR,:,SOL)' ; avg_CTL(MLR,:,SOL)'];
+    % Group labels for boxplot
+    sublabels = {'CTL', 'HOR'};
+    grpLabels = {'1', '2','3','4','5','6','7','8','9','10','11','12'}; 
+    grpLabels_conditions = {'SLR', 'MLR'};
 
-   group_control_ta = [avg_CTL(SLR,:,TA)' ; avg_CTL(MLR,:,TA)'];
+    % Boxplot of all subject 
+    boxplotGroup(box_soleus)
+    figure('Name','All subject') 
+    subplot(211)
+        boxplotGroup(box_soleus,'primaryLabels',sublabels,'SecondaryLabels',grpLabels_conditions, 'interGroupSpace',2,'GroupLines',true,'GroupType','betweenGroups')
+        ylabel("Normalized"+newline+"Soleus avtivity")
+    subplot(212)
+        boxplotGroup(box_tibialis,'primaryLabels',sublabels,'SecondaryLabels',grpLabels_conditions, 'interGroupSpace',2,'GroupLines',true,'GroupType','betweenGroups')
+        ylabel("Normalized"+newline+"Tibialis avtivity")
 
-%     group_mid_sol = [subgroup_sol(:,step2,mid)' ; subgroup_sol(:,step4,mid)' ; subgroup_sol(:,step6,mid)' ; (subgroup_sol(:,step2,mid)'+subgroup_sol(:,step4,mid)'+subgroup_sol(:,step6,mid)')./3]';
-%     group_up_sol =  [subgroup_sol(:,step2,up)' ; subgroup_sol(:,step4,up)' ; subgroup_sol(:,step6,up)' ; (subgroup_sol(:,step2,up)'+subgroup_sol(:,step4,up)'+subgroup_sol(:,step6,up)')./3]';
-%     x_sol = {group_low_sol, group_mid_sol, group_up_sol};
-
+    % Boxplot of individuel subject 
+    figSize = [100 200 1300 400];
+    figure('Name','Indiv sub','Position', figSize)
+    sgtitle("Horizontal perturbation")    
+    subplot(411); 
+        boxplotGroup(box_soleus_slr,'primaryLabels',sublabels,'SecondaryLabels',grpLabels(inc_sub), 'interGroupSpace',2,'GroupLines',true,'GroupType','betweenGroups')
+        title("Short Latency reflex - Soleus")
+        ylabel("SLR"+newline+"avg. Soleus")
+    subplot(412)
+        title("Short Latency reflex - Tibialis")
+        boxplotGroup(box_tibialis_slr,'primaryLabels',sublabels,'SecondaryLabels',grpLabels(inc_sub), 'interGroupSpace',2,'GroupLines',true,'GroupType','betweenGroups')
+        ylabel("SLR"+newline+"avg. Tibialis")
+    subplot(413);
+        title("Medium Latency reflex - Soleus")
+        boxplotGroup(box_soleus_mlr,'primaryLabels',sublabels,'SecondaryLabels',grpLabels(inc_sub), 'interGroupSpace',2,'GroupLines',true,'GroupType','betweenGroups')
+        ylabel("MLR"+newline+"avg. Soleus")
+    subplot(414)
+        title("Medium Latency reflex - Tibialis")
+        boxplotGroup(box_tibialis_mlr,'primaryLabels',sublabels,'SecondaryLabels',grpLabels(inc_sub), 'interGroupSpace',2,'GroupLines',true,'GroupType','betweenGroups')
+        ylabel("MLR"+newline+"avg. Tibialis")
 end 
 
 
