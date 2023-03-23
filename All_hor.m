@@ -5,19 +5,32 @@ close all;
 %% Folders 
 fprintf('script: Folder . . . '); tic
 
-names = ["thomas", "benedikte", "andreas", "andrew", "gritt", "maria", "trine", "trine2","Christian", "Soeren"]; % MIA
+names = ["thomas", "benedikte", "andreas",  "andrew", "gritt", "maria", "trine",  "trine2", "Christian", "Soeren"]; % "mia" excluded
+names_indiv = ["andreas", "andrew", "benedikte", "gritt", "maria", "thomas", "trine", "trine2"]; % "mia" excluded
 % CTL2: andrew, Gritt, thomas, Mia, Trine, Trine 2
 
 % Define data path
 addpath("C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/FunctionFiles")
-folderpath_preprocessed_data = "C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/data_preprocessed/"; 
 
-% preallocation
+folderpath_preprocessed_data = "C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/data_preprocessed/"; 
+folderpath_individuel_data = "C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/Indiv_data/"; 
+
+
+% Preallocation
 total_data = cell(1,1,numel(names));
 total_type = cell(1,1,numel(names)); 
 total_step = cell(1,1,numel(names)); 
 
-% load data 
+% Load vertical data 
+for i = 1:numel(names_indiv)
+    load(folderpath_individuel_data + names_indiv(i) + ".mat" ); 
+    total_data_vertical{:,:,i} = data_indiv; 
+
+    load(folderpath_individuel_data + names_indiv(i) + "_type.mat"); 
+    total_type_vertical{:,:,i} = type;
+end
+
+% Load preproccessed data  
 for i = 1:length(names)
     load(folderpath_preprocessed_data + names(i) + "_data.mat");   total_data{:,:,i} = data; % size(data) = [3,4]
     % example: data{protocol, sensor}(sweep, data number)
@@ -69,87 +82,146 @@ fprintf('done [ %4.2f sec ] \n', toc);
 
 %% Readjust data to Local Peak instead of FSR 
 fprintf('script: Readjust data to Local Peak instead of FSR . . .'); tic
-readjust = false; 
+readjust = true; 
 show_gui = false; 
-gui_subject = 4; 
-protocol = CTL; 
+gui_subject = 10; 
+
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
-error = zeros(numel(names),100);
+folderpath = "C:/Users/BuusA/OneDrive - Aalborg Universitet/10. semester (Kandidat)/Matlab files/Subject_offsets/"; 
+filename = 1+"offset.mat";
+
+
+error = zeros(numel(proto_all), numel(names),100); % 3x10x100
 if readjust 
-    for subject = 1:numel(names) % loop through subjects
+    for sub = 1:numel(names) % loop through subjects 
+        % Some subject only completed one protocol. 
+        if any(strcmp(names(sub), ["Christian", "Soeren"])) 
+            protocols = [CTL]; 
+        else 
+            protocols = proto_all; 
+        end
         
-        % Load data for subject 
-        data = total_data{1,1,subject}; 
-        step_index = total_step{1,1,subject};
-       
-        for sweep = 1:size(data{protocol,ANG},1) % loop through sweeps        
-            for step = 1:3  % loop through steps   
-                
-                % Find template around foot-strike
-                [rise_num, ~] = func_find_edge(steps_tested(step));   
-                rise_index = step_index{protocol}(sweep, rise_num); 
-                array = rise_index-400:rise_index+400;
-                template = data{protocol,ANG}(sweep, array); 
-                signal = data{protocol,ANG}(sweep, :); 
-            
-                % Peak inside template
-                [pks, locs] = findpeaks(template, 'MinPeakDistance', 200);
-                locs = locs + array(1);
-                
-                % Find the peak that follow the condition 
-                the_pks = 0; the_loc = 0;  % peaks and locations
-                for i = 1:numel(locs) % loop through locations
-                    if pks(i) > signal(locs(i) - 200) && pks(i) > signal(locs(i)+200)
-                        the_pks = pks(i);
-                        the_loc = locs(i);
+        % Check if an already defined offset file exist for subject 
+        filename = sub+"offset.mat";
+        filepath = fullfile(folderpath, filename);
+        if exist(filepath, 'file') == 2
+            load(filepath) % return 4x1 cell array called 'offset'
+            total_step{1,1,sub} = offset; 
+        
+        % Create offset automatically if no file exist 
+        else 
+            data = total_data{1,1,sub};         % load data
+            step_index = total_step{1,1,sub};   % load foot placement
+            for proto = protocols 
+                for sweep = 1:size(data{proto,ANG},1) % loop through sweeps        
+                    for step = 1:3  % loop through steps   
+                        
+                        % Find template around foot-strike
+                        [rise_num, ~] = func_find_edge(steps_tested(step));   
+                        rise_index = step_index{proto}(sweep, rise_num); 
+                        array = rise_index-400:rise_index+400;
+                        template = data{proto,ANG}(sweep, array); 
+                        signal = data{proto,ANG}(sweep, :); 
+                    
+                        % Peak inside template
+                        [pks, locs] = findpeaks(template, 'MinPeakDistance', 200);
+                        locs = locs + array(1);
+                        
+                        % Find the peak that follow the condition 
+                        the_pks = 0; the_loc = 0;  % peaks and locations
+                        for i = 1:numel(locs) % loop through locations
+                            if pks(i) > signal(locs(i) - 200) && pks(i) > signal(locs(i)+200)
+                                the_pks = pks(i);
+                                the_loc = locs(i);
+                            end 
+                        end 
+        
+                        % Update step_index or throw error
+                        if the_pks == 0     % non found: error
+                            error(proto,sub,sweep) = 1;                     
+                        else                % no error 
+                            step_index{proto}(sweep, rise_num) = the_loc;
+                        end 
+                    end % step
+                end % sweep
+        
+                % Display no-peak idxs 
+                temp = find(error(proto,sub,:) == 1);
+                if ~isempty(temp)
+                    singleStr = string;
+                    for i = 1:numel(temp)
+                        singleStr = singleStr + num2str(temp(i)) + " "; 
                     end 
+                    msg = "\n     No peak found. Subject: " + sub + ". Sweep: " + singleStr +  ". Protocol: " + proto + " "; 
+                    fprintf(2,msg); 
                 end 
+            end % proto
 
-                % Update step_index or throw error
-                if the_pks == 0     % non found: error
-                    error(subject,sweep) = 1;                     
-                else                % no error 
-                    step_index{protocol}(sweep, rise_num) = the_loc;
-                end 
-            end % step
-        end % sweep
-
-        % Remove no peak idxs 
-        temp = find(error(subject,:) == 1);
-        if ~isempty(temp)
-            msg = "\n     No peak found. Subject: " + subject + ". Sweep:" + num2str(temp) +  " "; 
-            fprintf(2,msg); 
-
-            step_index{CTL}(temp,:) = []; 
-            for i = [SOL, TA, FSR, ANG]
-                data{CTL,i}(temp,:) = []; 
-            end
-        end 
-
-        total_data{1,1,subject} = data; 
-        total_step{1,1,subject} = step_index; % update step_index
+        % Save realigned data 
+        total_data{1,1,sub} = data; 
+        total_step{1,1,sub} = step_index; % update step_index
+        end % exist 
     end % sub
     fprintf('\n     done [ %4.2f sec ] \n', toc);
 else 
     fprintf('disable \n');
-end 
-
+end  % readjust 
+ 
 
 if show_gui
     fprintf('script: Re-adjust gui - [Waiting for user input]')
     data = total_data{1,1,gui_subject}; 
-    step_index = total_step{1,1,gui_subject};
-    offset = []; 
-    readjustFSR
-    pause
-%     if ~empty(offset)
-%         total_step{1,1,gui_subject} = offset; 
-%     end 
-   fprintf('gui done \n')
+
+    filename = gui_subject+"offset.mat";
+    filepath = fullfile(folderpath, filename);
+    if exist(filepath, 'file') == 2
+        load(filepath) % return 4x1 cell array called 'offset'
+        step_index = offset; 
+    else
+        step_index = total_step{1,1,gui_subject}; % update step_index
+    end
+
+    offset = [];    % preparer for new input    
+    readjustFSR     % open gui
+    pause           % wait for user input 
+    
+    if ~isempty(offset)
+        if exist(filepath, 'file') == 2 
+            prompt = newline + "Want to over save. YES: press >y<. NO, press >n<"+ newline;
+            correctInput = false; 
+            while correctInput == false     % Wait for correct user input
+                switch input(prompt, 's');   % Save user input
+                    case "y"
+                        correctInput = true; 
+                        oversave = true; 
+                    case "n"
+                        correctInput = true; 
+                        oversave = false;
+                    otherwise
+                        correctInput = false;
+                        warning("Input not accepted")
+                end 
+            end 
+        else 
+            oversave = true; 
+        end 
+
+        if oversave
+            total_step{1,1,gui_subject} = offset; 
+            save(folderpath + gui_subject+"offset",'offset')
+            disp("Data saved")
+        end         
+    end 
+    fprintf('gui done \n')
 end 
 
-%% remove saturated data 
+
+% manuelly terminate unwanted sweeps
+
+
+
+%% Remove saturated data 
 fprintf('script: Remove saturated data . . .'); tic
 
 remove_saturated = true;    % enable or disable 
@@ -218,7 +290,7 @@ if normalize
         step_index = total_step{1,1,sub};
 
         if ~any(strcmp(names(sub), ["Christian", "Soeren"])) % christian and soeren only completed the prebaseline protocol 
-            [data] = func_normalize_EMG(step_index, data, 'protocols', [CTL,VER,HOR],  'normalize_to_step', normalizing_step,'span', span);
+            [data, factor(sub,:)] = func_normalize_EMG(step_index, data, 'protocols', [CTL,VER,HOR],  'normalize_to_step', normalizing_step,'span', span);
         else
             [data] = func_normalize_EMG(step_index, data, 'protocols', CTL,  'normalize_to_step', normalizing_step,'span', span);
         end
@@ -229,6 +301,16 @@ else
     fprintf('disable \n');
 end 
 
+
+for sub = 1:numel(names)
+    sub_ind = find(names(sub) == names_indiv); 
+    if ~isempty(sub_ind)
+        data = total_data_vertical{1,1,sub_ind}; 
+        data{VER,SOL} = data{VER,SOL} / factor(sub,SOL);
+        data{VER,TA}  = data{VER,TA} / factor(sub,TA);
+    end 
+end 
+
 %% Speed and aceleration (make as a function instead) 
 fprintf('script: Speed and aceleration . . . '); tic; 
 
@@ -237,6 +319,7 @@ span_position = 5;          % inc. sample in guassian filter span
 span_velocity = 5;          % inc. sample in guassian filter span 
 span_acceleration = 10;     % inc. sample in gaussian filter span 
 
+% Control and Horizontal trials
 for sub = 1:length(names) % subjects
     data = total_data{1,1,sub};  % load data 
     for proto = proto_all % protocols 
@@ -281,6 +364,29 @@ for sub = 1:length(names) % subjects
     end 
     total_data{1,1,sub} = data; 
 end
+
+% Vertical perturbation
+for sub = 1:numel(names_indiv) 
+    data = total_data_vertical{1,1,sub};
+    for i = 1:size(data{VER,1},1) % sweeps
+        
+        % Position [d]
+        %data{VER,ANG} = data{VER,ANG}.*4+25;                % rescale the signal; 
+        
+        % Velocity [d/s]
+        diffs1 = diff(data{VER,ANG}, 1, 2)./(dt*10^3);      % [deg/sample]
+        diffs1 = padarray(diffs1, [0 1], 'post');           % zeropadding       
+        data{VER,VEL} = smoothdata(diffs1, 2, 'gaussian', span_velocity);       % gaussian smoothing
+
+        % Acceleration [d/s^2]
+        diffs2 = diff(data{VER,VEL}, 1, 2)./(dt*10^3);      % [deg/sample^2]
+        diffs2 = padarray(diffs2, [0 1], 'post');           % zeropadding
+        data{VER,ACC} = smoothdata(diffs2, 2, 'gaussian', span_acceleration);   % gaussian smoothing
+
+    end
+    total_data_vertical{1,1,sub} = data;    
+end
+
 fprintf('done [ %4.2f sec ] \n', toc);
 
 %% Weighted data 
@@ -318,21 +424,21 @@ else
 end
 
 
-%% TASK0.1: Simplify the matlab script
+%% Task 0.1 Simplify the matlab script
 % Make the script accessible to be navigated by Andrew and Thomas. 
 % - clearify parameters meant to be adjusted. 
 % - make passive code as function and remove.
 
-%% TASK0.2 Show average sweep for single subject
-fprintf('script: TASK0.2 Show average sweep  . . . ');
+%% Task 0.2 Show average sweep for single subject
+fprintf('script: TASK 0.2  . . . ');
 
 show_plot = false;      % Disable or enable plot
-subject = 1;            % Obtions: 1:8
-proto = CTL;            % Obtions: CTL, VER, HOR 
+subject = 6;            % Obtions: 1:8
+proto = HOR;            % Obtions: CTL, VER, HOR 
 str_sen = ["Position", "Soleus", "Tibialis"];    % Obtions: "Soleus", "Tibialis","Position", "Velocity", "Acceleration"; 
-show_FSR = true; 
+show_FSR = false; 
 
-align_bool = true;      % Should the data be aligned with step specified in "Align with specific Stair step"
+align_bool = false;      % Should the data be aligned with step specified in "Align with specific Stair step"
     alignWithStep = align_with_obtions(1) ;
     before = 200; 
     after = 100; 
@@ -428,14 +534,16 @@ figure;
             xlabel(str_xlabel)
         end 
     end
+
+    clear y_fsr
 else 
     fprintf('disable \n');
 end 
 
 
-%% TASK0.3 Show individual sweep for single subject
+%% Task 0.3 Show individual sweep for single subject
 % undersøg for metodisk fejl.
-fprintf('script: TASK0.3 Show individual sweep  . . . ');
+fprintf('script: TASK 0.3  . . . ');
 
 show_plot = false;       % Disable or enable plot
 subject = 2;            % Obtions: 1:9
@@ -536,9 +644,10 @@ else
 end 
 
 
-%% TASK1.1: FC regression correlation with Soleus activity. (Seperate steps, single subject) 
+%% Task 1.1 FC correlation with EMG (Seperate steps, Single subject) 
 % Find individuelle outliner og undersøg for refleks response. 
-fprintf('\nscript: TASK1.1  . . . '); tic
+% Exclude Maria (sub = 6) 
+fprintf('\nscript: TASK 1.1  . . . '); tic
 
 show_plot = false;           % plot the following figures for this task
 subject = 1;                % subject to analyse
@@ -548,6 +657,7 @@ after = 50;
 xlimits = [-100 100];
 savepgn = false; 
 
+inc_sub = [1,2,3,4,5,7,8,9,10];
 % .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 if show_plot
     if ~readjust
@@ -558,7 +668,7 @@ if show_plot
     end
     
     % General search bars: 
-    dep_off = 59; dep_len = 20; 
+    dep_off = 39; dep_len = 20; 
     step = 2; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
     step = 4; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
     step = 6; predict_search(step,:) = [0,20]; depend_search(step,:) = [predict_search(step,1)+dep_off,predict_search(step,1)+dep_off+dep_len];    % ms 
@@ -567,7 +677,7 @@ if show_plot
     predictor_value = cell(size(names)); 
     depended_value = cell(size(names)); 
     
-    for sub = 1:length(names)   % loop through subjects
+    for sub = inc_sub   % loop through subjects
         if ~readjust    % readjust disabled. Manuel search-bars applied
             switch sub 
             case 1
@@ -613,39 +723,40 @@ if show_plot
             end 
         end
     
-        % remember values for later plt
+        % Remember values for later plt
         if sub == subject 
             predict_search_plt = predict_search; 
             depend_search_plt = depend_search; 
         end
     
-        % load data from defined subject defined by loop
+        % Load data from defined subject defined by loop
         data = total_data{1,1,sub};  
         step_index = total_step{1,1,sub};
         
-        % find predictor and depended 
+        % Find predictor and depended 
         for step = [2,4,6]                      % loop through steps
             for i = 1:size(data{proto,1},1)     % loop through sweeps    
-                % from ms to sample
+                % From ms to sample
                 predict_search_index = floor(ms2sec(predict_search(step,:))*Fs);
                 depend_search_index = floor(ms2sec(depend_search(step,:))*Fs);
         
-                % find rise index for the given step and define window 
+                % Find rise index for the given step and define window 
                 [rise, ~] = func_find_edge(step);
                 rise_index = step_index{proto}(i,rise);
                 predict_search_array = predict_search_index(1)+rise_index : predict_search_index(2)+rise_index; 
                 depend_search_array = depend_search_index(1)+rise_index : depend_search_index(2)+rise_index; 
                   
-                % find average values
-                %predictor_value(step,i) = mean(data{proto,pre_sensory_modality}((i), predict_search_array),2); 
-                predictor_value{sub}(step, i) = (data{proto,ANG}((i),predict_search_array(1)) - data{proto,ANG}((i),predict_search_array(end))) / diff(predict_search(step,:)); 
-                depended_value{sub}(SOL, step, i) = mean(data{proto,SOL}((i), depend_search_array),2);
-                depended_value{sub}(TA, step, i) = mean(data{proto,TA}((i), depend_search_array),2);
+                % Find average values
+                predictor_value{sub}(step,i) = mean(data{proto,ANG}((i), predict_search_array),2); 
+                %predictor_value{sub}(step, i) = (data{proto,ANG}((i),predict_search_array(1)) - data{proto,ANG}((i),predict_search_array(end))) / diff(predict_search(step,:)); 
+                for sensory_type = [SOL, TA]
+                    depended_value{sub}(sensory_type, step, i) = mean(data{proto,sensory_type}((i), depend_search_array),2);
+                end
             end 
         end
     end 
 
-    % load data for plot, defined by >> subject <<
+    % Load data for plot, defined by >> subject <<
     data = total_data{1,1,subject};  
     step_index = total_step{1,1,subject};
     
@@ -653,7 +764,7 @@ if show_plot
     width = screensize(3);
     height = screensize(4);
     
-    % plot figure
+    % Plot figure
     figSize = [50 50 width-200 height-200]; % where to plt and size
     figure('Position', figSize); % begin plot 
     sgtitle("TASK 1.1 Data: Prebaseline. Subject: " + subject + ". [n = " + size(data{proto,1},1) + "]."); 
@@ -661,7 +772,7 @@ if show_plot
     predict_search_plt = predict_search_plt; 
     depend_search_plt = depend_search_plt; 
 
-    % patch properties 
+    % Patch properties 
     y_pat = [-1000 -1000 1000 1000];
     patchcolor = "blue"; 
     FaceAlpha = 0.4; 
@@ -674,13 +785,13 @@ if show_plot
         [data_plot{proto,:}] = func_align(step_index{proto}, data{proto,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', align_with_obtions(k));
 
         subplot(6,3,0+k); hold on; % Ankel 
-            % formalia setup
+            % Formalia setup
             ylabel("Position");
             title("Step " + k*2)
             subtitle("Ankel" +" "+ predict_search_plt(steps_tested(k),1) + " : "+predict_search_plt(steps_tested(k),2)+"ms")
             xlim(xlimits)
 
-            % plt data 
+            % Plt data 
             y = mean(data_plot{proto,ANG},1); 
             std_dev = std(data_plot{proto,ANG});
             curve1 = y + std_dev;
@@ -695,12 +806,12 @@ if show_plot
             patch(x_pat_pre,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
     
         subplot(6,3,3+k); hold on; % velocity
-            % formalia setup
+            % Formalia setup
             ylabel(labels_ms(VEL));
             subtitle(labels(VEL) +" "+ predict_search_plt(steps_tested(k),1) + " : "+predict_search_plt(steps_tested(k),2)+"ms")
             xlim(xlimits)
             
-            % plt data 
+            % Plt data 
             y = mean(data_plot{proto,VEL},1); 
             std_dev = std(data_plot{proto,VEL});
             curve1 = y + std_dev;
@@ -715,12 +826,12 @@ if show_plot
             patch(x_pat_pre,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
             
         subplot(6,3,6+k); hold on; % soleus
-            % formalia setup
+            % Formalia setup
             ylabel(labels_ms(SOL)); 
             subtitle(labels(SOL) +" "+ depend_search_plt(steps_tested(k),1) + " : "+depend_search_plt(steps_tested(k),2)+"ms")            
             xlim(xlimits)
     
-            % plt data 
+            % Plt data 
             y = mean(data_plot{proto,SOL},1); 
             std_dev = std(data_plot{proto,SOL});
             curve1 = y + std_dev;
@@ -735,12 +846,12 @@ if show_plot
             patch(x_pat_dep,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
 
         subplot(6,3,9+k); hold on; % tibíalis
-             % formalia setup
+             % Formalia setup
             ylabel(labels_ms(TA)); 
             subtitle(labels(TA) +" "+ depend_search_plt(steps_tested(k),1) + " : "+depend_search_plt(steps_tested(k),2)+"ms")            
             xlim(xlimits)
     
-            % plt data 
+            % Plt data 
             y = mean(data_plot{proto,TA},1); 
             std_dev = std(data_plot{proto,TA});
             curve1 = y + std_dev;
@@ -755,11 +866,11 @@ if show_plot
             patch(x_pat_dep,y_pat,patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', "none")
 
         subplot(6,3,12+k); hold on; % plot regression 
-            % formalia 
+            % Formalia 
             xlabel("Pos(start-end)/window size")
             ylabel("Avg. "+labels(SOL))
             
-            % plt data 
+            % Plt data 
             depended = []; predictor = [];  
             depended = nonzeros(squeeze(depended_value{subject}(SOL, steps_tested(k),:))); 
             predictor = nonzeros(squeeze(predictor_value{subject}(steps_tested(k),:)));
@@ -773,11 +884,11 @@ if show_plot
             subtitle("Sweep average" + newline + "p-value: " + round(p_value,2))
 
         subplot(6,3,15+k); hold on; % plot regression 
-            % formalia 
+            % Formalia 
             xlabel("Pos(start-end)/window size")
             ylabel("Avg. "+labels(TA))
             
-            % plt data 
+            % Plt data 
             depended = []; predictor = [];  
             depended = nonzeros(squeeze(depended_value{subject}(TA, steps_tested(k),:))); 
             predictor = nonzeros(squeeze(predictor_value{subject}(steps_tested(k),:)));
@@ -815,7 +926,7 @@ if show_plot
             plot(predictor(k,:), depended(k,:), marker(k),"color", "blue")
         end
         
-        % linear regression 
+        % Linear regression 
         depended_all_step = [depended(1,:) depended(2,:) depended(3,:)];
         predictor_all_step = [predictor(1,:) predictor(2,:) predictor(3,:)];
         mdl = fitlm(predictor_all_step, depended_all_step);   % <--- SIG
@@ -825,7 +936,7 @@ if show_plot
         linearReg = @(x) x*a + b; 
         plot(predictor_all_step, linearReg(predictor_all_step), "color", "red")
         
-        % plt formalia 
+        % Plt formalia 
         legend(["Data: Step 2", "Data: Step 4", "Data: Step 6","Fit"])
         xlabel("Pos(start-end)/window size")
         ylabel("Avg. " + labels(sensory_type))
@@ -844,24 +955,25 @@ end
 
 
 
-%% TASK1.3: FC regression correlation with EMG (Seperate steps, All subject) 
-fprintf('script: TASK1.3  . . .'); tic
+%% Task 1.2 FC correlation with EMG (Assemble steps) 
+fprintf('script: TASK 1.2  . . . '); tic
 show_plot = false; 
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
 if show_plot
+    reg_data = struct; 
     marker = ["*",".","x"];    
     color = [[0 0 1];[0.5 0 0.5];[1 .1 0]]; 
 
-    % re-arrange data from cell to struct. 
+    % Re-arrange data from cell to struct. 
     data_reg = struct; 
     data_reg.dep_steps = cell(2,3);     % depended sortet each step, [sol,ta]
     data_reg.pre_steps = cell(1,3);     % predictor sortet each step, [vel]
     data_reg.pre = [];                  % depended sortet all step, [sol,ta]
     data_reg.dep = cell(2,1);           % predictor sortet all step, [vel]
 
-    % re-arrange data from cell to array and save in struct
-    for sub = 1:numel(names)
+    % Re-arrange data from cell to array and save in struct
+    for sub = inc_sub
         for step = 1:3 
             for EMG = [SOL,TA]
                 data_reg.dep_steps{EMG,step} = [data_reg.dep_steps{EMG,step}, nonzeros(squeeze(depended_value{sub}(EMG, steps_tested(step),:)))' ]; 
@@ -872,24 +984,29 @@ if show_plot
         end 
     end 
 
-    % defining plt window size
+    % Defining plt window size
     screensize = get(0,'ScreenSize');
     width = screensize(3);
     height = screensize(4);
     figSize = [100 100 width-200 height-200]; % where to plt and size
     figure('Position', figSize); % begin plot 
-    sgtitle("TASK 1.3 All subjects (Subjects displayed in different colors)"); 
+    sgtitle("Correlation [n="+numel(inc_sub)+"]. Weighted: "+weighting_data+". Re-align: " + readjust)
     
     
-    % plt subject data in different colors 
-    for sub = 1:numel(names) % subject
+    % Plot subject data in different colors 
+    for sub = inc_sub % subject
         for sensory_type = [SOL,TA] % muscle type
             depended = []; predictor = [];  
             for k = 1:3 % loop steps 
                 depended(k,:) = nonzeros(squeeze(depended_value{sub}(sensory_type, steps_tested(k),:))); 
                 predictor(k,:) = nonzeros(squeeze(predictor_value{sub}(steps_tested(k),:)));
                 
-                % plt the individuel steps
+                % Remember p-value and slope for later plot
+                mdl = fitlm(predictor(k,:), depended(k,:));  
+                reg_data.slopes(sub, sensory_type, k) = table2array(mdl.Coefficients(2,1));   % slopes
+                reg_data.p_value(sub, sensory_type, k) = table2array(mdl.Coefficients(2,4));  % p_values
+
+                % Plt the individuel steps
                 subplot(2, 5, 5*(sensory_type-1)+k); hold on; % 5*(s-1)+k={1,2,3,6,7,8}, k={1,2,3}, s={1,2}            
                 plot(predictor(k,:), depended(k,:),'x');
                 title("Step " + steps_tested(k))
@@ -897,29 +1014,27 @@ if show_plot
                 ylabel(labels(sensory_type))
             end
 
-            % plt the combined steps 
+            % Plt the combined steps 
             subplot(2,5, 4+5*(sensory_type-1):5+5*(sensory_type-1)); hold on % 4+5*(s-1)={4,9}, 5+5*(s-1)={5,10} s={1,2}
             plot(predictor(:)', depended(:)','x')
-
-            mdl = fitlm(predictor(:), depended(:));   % <--- SIG
-            b = table2array(mdl.Coefficients(1,1)); 
-            a = table2array(mdl.Coefficients(2,1));
-            p_value = table2array(mdl.Coefficients(2,4)); 
-            slopes(sub,sensory_type) = a;
-            title("All steps")
-            subtitle("P-value " + "R^2")
+            title("All steps")            
             ylabel(labels(sensory_type))
             xlabel("Pos(s-e)/w")
+
+            % Remember p-value and slope for later plot
+            mdl = fitlm(predictor(:), depended(:));   
+            reg_data.slopes(sub, sensory_type, 4)  = table2array(mdl.Coefficients(2,1));  % slopes
+            reg_data.p_value(sub, sensory_type, 4) = table2array(mdl.Coefficients(2,4));  % p_values
         end
     end 
 
-    % set y-limits and x-limits on all subplots 
+    % Set y-limits and x-limits on all subplots 
     ax = findobj(gcf, 'type', 'axes');
     ylims = get(ax, 'YLim'); 
     xlims = get(ax, 'XLim'); 
-    [~, idx_y_ta] = max(cellfun(@(x) diff(x), ylims(1:4)));
+    [~, idx_y_ta]  = max(cellfun(@(x) diff(x), ylims(1:4)));
     [~, idx_y_sol] = max(cellfun(@(x) diff(x), ylims(5:8)));
-    [~, idx_x_ta] = max(cellfun(@(x) diff(x), xlims(1:4)));
+    [~, idx_x_ta]  = max(cellfun(@(x) diff(x), xlims(1:4)));
     [~, idx_x_sol] = max(cellfun(@(x) diff(x), xlims(5:8)));
     idx_y_sol = idx_y_sol+4; 
     idx_x_sol = idx_x_sol+4; 
@@ -933,7 +1048,7 @@ if show_plot
         end
     end
     
-    % plot regression 
+    % Plot regression 
     for sensory_type = [SOL,TA] % loop 
         for step = 1:3 % loop steps  
             mdl = fitlm(data_reg.pre_steps{step}, data_reg.dep_steps{sensory_type, step}); 
@@ -944,7 +1059,11 @@ if show_plot
             linearReg = @(x) x*a + b; 
             subplot(2, 5, 5*(sensory_type-1)+step); hold on; 
             plot(data_reg.pre_steps{step}, linearReg(data_reg.pre_steps{step}), "color", "red")
-            subtitle("P-value " + p_value + ". R^2 " + r2)
+            if p_value < 0.05
+                subtitle(['P-value: {\color{black} ' num2str(p_value) '}. R^2' num2str(r2)])
+            else 
+                subtitle(['P-value: {\color{red} ' num2str(p_value) '}. R^2' num2str(r2)])
+            end           
         end
 
         mdl = fitlm(data_reg.pre, data_reg.dep{sensory_type}); 
@@ -955,7 +1074,12 @@ if show_plot
         linearReg = @(x) x*a + b; 
         subplot(2,5, 4+5*(sensory_type-1):5+5*(sensory_type-1)); hold on
         plot(data_reg.pre_steps{step}, linearReg(data_reg.pre_steps{step}), "color", "red")
-        subtitle("P-value " + p_value + ". R^2 " + r2)
+        if p_value < 0.05
+            subtitle(['P-value: {\color{black} ' num2str(p_value) '}. R^2' num2str(r2)])
+        else 
+            subtitle(['P-value: {\color{red} ' num2str(p_value) '}. R^2' num2str(r2)])
+        end   
+
     end
     filename = "All subject (1-"+numel(names)+").png";
     fullpath = fullfile(filepath, filename);
@@ -966,35 +1090,76 @@ else
     fprintf('disable \n');
 end
 
-%% Task1.5 FC regression correlation with Soleus activity (steepest ascent)
+%% Task 1.3 FC correlation with EMG (slopes)
 % Find the best parameters for one subject and apply them to the other
 %    subjects. 
 pltShow = false; 
+inc_sub = [1,2,3,4,5,7,8,9,10];
 
 
 if pltShow 
-    figure; hold on 
-    xlim([0.5, 2.5])
-    title("")
-    ylabel("Correlations"+newline+"Slopes")
-    grid on;
-    plot([0,3],[0,0], "color", "black")
-    title("Individuals subjecs mean slope, all steps")
-    subtitle(['{\color{blue} Marks, Soleus [n=' num2str(size(slopes,1)) '].}, {\color{red} Marks, Tibialis [n=' num2str(size(slopes,1)) ']}, Circle, group mean'])
-    plot(1, mean(slopes(:,SOL)), 'o', "color", "black", 'LineWidth', 3)
-    plot(ones(1,size(slopes,1)), slopes(:,SOL), 'p', "color", "blue")
+    if exist("reg_data")
+        figSize = [300 250 700 400]; % where to plt and size
+        figure('Position', figSize); % begin plot 
+        hold on 
+        sgtitle("Correlations slopes [n="+numel(inc_sub)+"]. Weighted: "+weighting_data+". Re-align: " + readjust)
+        
+        for sensory_type = [SOL, TA]
+            for step = 1:4
+                if step == 4
+                    subplot(1,5,4:5); hold on 
+                    title("All steps")
+                else
+                    subplot(1,5,step); hold on
+                    title("Step " + step)
+                end
+                slopes  = reg_data.slopes(inc_sub, sensory_type, step); 
+                p_value = reg_data.p_value(inc_sub,sensory_type, step);
+                x_value = ones(1,size(slopes,1)); 
+                if sensory_type == TA; x_value=x_value+1; end 
+                
+                plot([0 3],[0 0], 'color', 'black')
+                plot(x_value(1), mean(slopes), "_", 'Color', 'red', 'linewidth', 4)
+                plot(x_value, slopes, '.', 'color', 'black') % soleus data indiv
+                for i = 1:length(p_value)
+                    if p_value(i) < 0.05 
+                        plot(x_value, slopes(i), 'o', 'linewidth',2, 'color', [0.75,0.75,0.75]) % soleus data indiv
+                    end 
+                end 
+                xticks([1 2]);
+                xticklabels({'SOL', 'TA'});
+                grid on;
     
-    plot(2, mean(slopes(:,TA)), 'o', "color", "black",'LineWidth', 3)
-    plot(ones(1,size(slopes,1))+1, slopes(:,TA), 'p', "color", "red")
+                if step == 1
+                    ylabel("Regression Slopes"+newline+" [ \alpha ]")
+                elseif step == 4
+                    legend(["", "Group mean", "Slope (subject)", "< 0.05"])
+                end
+    
+            end 
+        end
+    
+        % Set y-limits on all subplots 
+        ax = findobj(gcf, 'type', 'axes');
+        ylims = get(ax, 'YLim'); 
+        max_value = max(cellfun(@max, ylims));
+        min_value = min(cellfun(@min, ylims));
+        for i = 1:numel(ax)
+            set(ax(i), 'YLim', ([min_value max_value]))
+        end 
+    else 
+        msg = "\n     New to run 'Task 1.2' before to enable this section to plot \n"; 
+        fprintf(2,msg); 
+    end
 end
 
-%% TASK2.1 Within step adjustment of EMG acticity due to natural angle variation (single subject)
+%% Task 2.1 Within step adjustment of EMG acticity due to natural angle variation. (Single subject)
 % Find whether the EMG activity is passively adjusted to changes in angle
 %    trajectories. 
 % All steps and seperated step 
 % nassarro
 % two plot: inden burst activitet og til max burst activitet (all subject)
-fprintf('script: TASK2.1  . . . '); tic
+fprintf('script: TASK 2.1  . . . '); tic
 
 show_plot = false;
 subject = 2; % 
@@ -1006,7 +1171,7 @@ pre = 1; search_area(pre,:) = [0.15; 0.60]; % predictor search window
 dep = 2; search_area(dep,:) = [0.15; 0.70]; % depended search window
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
-% load data from subject
+% Load data from subject
 data = total_data{1,1,subject};  
 step_index = total_step{1,1,subject};
         
@@ -1017,13 +1182,13 @@ if show_plot
     
     clear win_avg_ang win_avg_sol win_avg_ta
     for step = 1:3
-        % align data needed to be plotted
+        % Align data needed to be plotted
         clear temp_plot
         temp_plot = cell(3,7); 
         [temp_plot{protocol,:}] = func_align(step_index{protocol}, data{proto,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', align_with_obtions(step));
         x_axis = temp_plot{protocol, time};
           
-        % align data needed to calculate window avg
+        % Align data needed to calculate window avg
         clear temp_data
         temp_data = cell(3,7); 
         [temp_data{protocol,:}] = func_align(step_index{protocol}, data{proto,[1:4,6:7]}, 'alignStep', align_with_obtions(step));
@@ -1047,24 +1212,24 @@ if show_plot
         win_avg_ta(step,:) = win_avg_ta(step, win_avg_idx);   % sort these with found order
 
         clear lower_index mean_index upper_index
-        % sort data in groups [low, mid, up] 
+        % Sort data in groups [low, mid, up] 
         dim = size(win_avg_ang,2); % num of sweeps
         lower_index(:) = 1:floor(dim/3); 
         mean_index(:) = floor(dim/3)+1:dim-floor(dim/3); 
         upper_index(:) = dim-floor(dim/3)+1:dim; 
 
-        % mean plot properties
+        % Mean plot properties
         color_mean = [150 152 158]/255;
         LineWidth_mean = 2; 
     
-        % upper and lower plot properties
+        % Upper and lower plot properties
         color_upper = "blue";
         color_lower = "red";
         upper_style = "--";
         lower_style = "-.";
         LineWidth_UL = 1; 
     
-        % patch properties
+        % Patch properties
         y_pat = [-1000 -1000 2000 2000];
         patchcolor = [251 244 199]/255; 
         FaceAlpha = 1; 
@@ -1074,7 +1239,7 @@ if show_plot
             x_pat(cc,:) = [pct_start_sec(cc), pct_end_sec(cc), pct_end_sec(cc), pct_start_sec(cc)]; 
         end 
 
-        % plot figures 
+        % Plot figures 
         % ankel
         subplot(330+step); hold on; 
         title("Step " + steps_tested(step))
@@ -1092,7 +1257,7 @@ if show_plot
             plot(x_axis, mean(temp_plot{protocol, ANG}(win_avg_idx(lower_index),:),1), lower_style,'LineWidth', LineWidth_UL, "color", color_lower)
     
     
-        % soleus
+        % Soleus
         subplot(333+step); hold on; 
         subtitle(labels(SOL))
         ylabel("Soleus"+newline+"[normalized]")
@@ -1106,7 +1271,7 @@ if show_plot
             plot(x_axis, mean(temp_plot{protocol, SOL}(win_avg_idx(upper_index),:),1), upper_style, 'LineWidth', LineWidth_UL, "color", color_upper)
             plot(x_axis, mean(temp_plot{protocol, SOL}(win_avg_idx(lower_index),:),1), lower_style,'LineWidth', LineWidth_UL, "color", color_lower)
     
-        % tibialis
+        % Tibialis
         subplot(336+step); hold on;
         subtitle(labels(TA))
         ylabel("Tibialis"+newline+"[normalized]")
@@ -1126,8 +1291,8 @@ else
 fprintf('disable \n');
 end   
 
-%% task2.2 Within step adjustment of EMG acticity due to natural angle variation. (single subject)
-fprintf('script: TASK2.2  . . . '); tic
+%% Task 2.2 Within step adjustment of EMG acticity due to natural angle variation. (Single subject)
+fprintf('script: TASK 2.2  . . . '); tic
 
 show_plt = false; 
 
@@ -1158,7 +1323,8 @@ if show_plt
     YL_ta = get(gca, 'YLim'); 
     close 13
     
-    % Plot boxplot for single subject
+    % Pl
+    % ot boxplot for single subject
     figure; hold on; 
         blue = 	[0 0 1]; red = [1 0 0]; gray = color_mean; 
 
@@ -1183,8 +1349,8 @@ else
 fprintf('disable \n');
 end  
 
-%% task2.3 Within step adjustment of EMG acticity due to natural angle variation. (All subject)
-fprintf('script: TASK2.3  . . . '); tic
+%% Task 2.3 Within step adjustment of EMG acticity due to natural angle variation. (All subject)
+fprintf('script: TASK 2.3  . . . '); tic
 show_plt = false; 
 
 %  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  . 
@@ -1284,7 +1450,7 @@ end %show_plt
 
 
 
-%% Task3.1 horizontal perturbation. 
+%% Task 3.1 horizontal perturbation. 
 % plot difference i hastighed ift soleus aktivitet som regression plot. 
 % 5 første stræk mod 5 sidste stræk 
 
@@ -1531,7 +1697,7 @@ if show_plt
 end 
 
 
-%% TASK3.2 Horizontal perturbation boxplot 
+%% Task 3.2 Horizontal perturbation boxplot 
 % Show boxplot where all subject can clearly be identified. 
 show_plt = false; 
 inc_sub = [1,2,3,4,5,6,7,8]; 
@@ -1627,14 +1793,126 @@ if show_plt
         ylabel("MLR"+newline+"avg. Tibialis")
 end 
 
+%% Task 4.1 Vertical perturbation
+fprintf('script: TASK 4.1  . . . '); tic
+show_plt = true; 
+subject = 2; 
+x_range = [-200 200]; 
+show_cross = true; 
+plt_show = [ANG, VEL, SOL, TA]; 
 
-%% TASK4 Pre-baseline vs Post-baseline 
+
+% Defined size for window-analysis
+pre_search = [0 , 20]; % denoted in ms 
+SLR_search = [39, 59]; % denoted in ms  
+MLR_search = [60, 80]; % denoted in ms
+
+
+%   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .
+% Load data
+data = total_data_vertical{1,1,subject}; 
+type = total_type_vertical{1,1,subject}; no = type{2}; yes = type{1};
+
+% Re-align data control to perturbation 
+templ_array = [500:1500];  % template array, denoted in samples
+y_yes =  mean(data{VER,SOL}(yes,:),1); 
+template = mean(data{VER,SOL}(no,templ_array),1);
+[rx, lags] = xcorr(y_yes, template); % Cross-correlation
+
+% Find Peaks
+[pks, locs] = findpeaks(rescale(rx), 'MinPeakDistance', 500);
+tmp = find(lags(locs) > 0);
+pks = pks(tmp);
+locs = locs(tmp);
+delay = templ_array(1)-lags(locs(1)); % denoted in samples 
+delay_ms = sec2ms(delay*dt);
+
+% Show cross correlation
+if show_cross
+    % Check if a figure with the name 'TASK3' is open
+    fig = findobj('Name', 'Cross correlation');
+    % If a figure is found, close it
+    if ~isempty(fig), close(fig); end
+
+    figure('name', 'Cross correlation'); hold on 
+    title("Cross correlation visualized")
+    N = numel(y_yes); 
+    plot(lags(locs(1)):lags(locs(1))+numel(template)-1, template, 'color', [0.7, 0.7, 0.7], 'LineWidth', 5);
+    plot(0:N-1, y_yes, 'color', 'black')
+    plot(lags, rescale(rx), 'color', 'blue');
+    plot(lags(locs), pks, 'rx', 'linewidth', 1);
+    plot(lags(locs(1)), pks(1), 'o');
+    plot([lags(locs(1)), lags(locs(1))], [0,pks(1) ])
+end
+
+% Patch properties 
+patchcolor = [251 244 199]/255; 
+FaceAlpha = 0.4; 
+patX_predict = [pre_search(1) pre_search(2) pre_search(2) pre_search(1)];    % ms 
+patX_slr     = [SLR_search(1) SLR_search(2) SLR_search(2) SLR_search(1)];    % ms
+patX_mlr     = [MLR_search(1) MLR_search(2) MLR_search(2) MLR_search(1)];    % ms
+patY = [-1000 -1000 1000 1000];
+EdgeColor = [37 137 70]/255;
+lineWidth_patch = 0.5;
+
+if show_plt
+    % Plot properties 
+    color_no = [0.75, 0.75, 0.75]; 
+    color_yes = "black"; 
+    linewidth_no = 3; 
+    linewidth_yes = 1; 
+    
+    
+    % Check if a figure with the name 'TASK3' is open
+    fig = findobj('Name', 'Vertical Perturbation');
+    if ~isempty(fig), close(fig); end
+    
+    % Begin plot 
+    figure('Name', 'Vertical Perturbation'); hold on; 
+    x_axis = data{VER,time};
+
+    for i = 1:numel(plt_show)
+        subplot(numel(plt_show), 1, i); hold on
+        ylabel(labels_ms(plt_show(i)))
+        xlim(x_range)
+
+        plot(x_axis-delay_ms, mean(data{VER,plt_show(i)}(no,:),1), 'color', color_no, "linewidth", linewidth_no)
+        plot(x_axis, mean(data{VER,plt_show(i)}(yes,:),1), 'color', color_yes, "linewidth", linewidth_yes)
+        YL = get(gca, 'YLim'); ylim([YL(1) YL(2)]);
+        
+        if or(plt_show(i) == ANG, plt_show(i) == VEL)  
+            disp("kage")
+            patch(patX_predict, patY, patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', EdgeColor, 'LineWidth', lineWidth_patch)
+        else
+            patch(patX_slr, patY, patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', EdgeColor, 'LineWidth', lineWidth_patch)
+            patch(patX_mlr, patY, patchcolor,'FaceAlpha',FaceAlpha, 'EdgeColor', EdgeColor, 'LineWidth', lineWidth_patch)
+        end 
+        set(gca, 'Layer', 'top')
+        plot(x_axis-delay_ms, mean(data{VER,plt_show(i)}(no,:),1), 'color', color_no, "linewidth", linewidth_no)
+        plot(x_axis, mean(data{VER,plt_show(i)}(yes,:),1), 'color', color_yes, "linewidth", linewidth_yes)
+        
+    
+    end
+
+
+%     data = total_data{1,1,subject};  
+%     step_index = total_step{1,1,subject};
+%     type = total_type{1,1,subject}; yes = type{3}; no = type{4}; 
+% 
+%     clear temp_plot
+%     temp_plot = cell(3,7); 
+%     [temp_plot{HOR,:}] = func_align(step_index{HOR}, data{HOR,[1:4,6:7]}, 'sec_before', ms2sec(before), 'sec_after', ms2sec(after), 'alignStep', "four_begin");
+%     x_axis = sec2ms(temp_plot{HOR, time});
+end
+
+
+%% Task 5 Pre-baseline vs Post-baseline 
 % Does the spinal influence chance due to the experienced protocols. 
 
-%% TASK5 Show individual Unload trials
+%% Task 5 Show individual Unload trials
 
 
-%% TASK6 make foot movement graph
+%% Task 6 make foot movement graph
 
 
 
@@ -1643,3 +1921,9 @@ end
 %% finsihed
 fprintf('\n\n Processed finished \n') 
 
+%  title(['Black graph, Sweep data. {\color{gray} Gray graph, Mean data [n=' num2str(sweepNum) '].}'])
+
+% % Check if a figure with the name 'TASK3' is open
+% fig = findobj('Name', 'Vertical Perturbation');
+% % If a figure is found, close it
+% if ~isempty(fig), close(fig); end
